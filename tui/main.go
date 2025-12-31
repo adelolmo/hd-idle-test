@@ -182,7 +182,8 @@ func main() {
 func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextView, flex *tview.Flex) {
 	sessions, err := requestSessionsFromDaemon()
 	if err != nil {
-		panic(err)
+		logsView.SetText("Unable to load sessions. " + err.Error())
+		return
 	}
 	sessionsList.Clear()
 	logsView.SetText("Loading sessions...")
@@ -225,7 +226,7 @@ func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextVie
 func updateStatus() {
 	client, err := openClient()
 	if err != nil {
-		panic(err)
+		logsView.SetText("Error getting status. " + err.Error())
 	}
 
 	resp, err := client.Get("http://unix/status")
@@ -254,7 +255,7 @@ func updateStatus() {
 func requestSessionsFromDaemon() ([]string, error) {
 	client, err := openClient()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	resp, err := client.Get("http://unix/sessions")
