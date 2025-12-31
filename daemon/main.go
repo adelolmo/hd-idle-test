@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"net"
@@ -14,7 +15,12 @@ import (
 )
 
 const (
-	socketFile = "/tmp/demo.sock"
+	socketFile    = "/tmp/demo.sock"
+	hdidleLogFile = "/var/log/hd-idle.log"
+)
+
+var (
+	hdidleLogLengh = 0
 )
 
 func main() {
@@ -53,33 +59,59 @@ func main() {
 	router.GET("/sessions/:id", func(c *gin.Context) {
 		sessionDir := filepath.Join(dataDir, c.Param("id"))
 
+		type Frame struct {
+			Diskstats string `json:"diskstats"`
+			Log       string `json:"log"`
+		}
 		type Response struct {
-			Diskstats []string `json:"diskstats"`
+			Frames []Frame `json:"frames"`
 		}
 
-		diskstatsDir := filepath.Join(sessionDir, "diskstats")
-		diskStatsFiles, err := os.ReadDir(diskstatsDir)
+		frameDirs, err := os.ReadDir(sessionDir)
 		if err != nil {
 			log.Println(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
-		var diskstats []string
-		for _, e := range diskStatsFiles {
-			if e.IsDir() {
+		var frames []Frame
+		for _, e := range frameDirs {
+			if !e.IsDir() {
 				continue
 			}
-			bytes, err := os.ReadFile(filepath.Join(diskstatsDir, e.Name()))
+			diskStatsBytes, err := os.ReadFile(filepath.Join(sessionDir, e.Name(), "diskstats"))
 			if err != nil {
 				log.Println(err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
-			diskstats = append(diskstats, string(bytes))
+
+			logBytes, err := os.ReadFile(filepath.Join(sessionDir, e.Name(), "log"))
+			if err != nil {
+				log.Println(err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			frames = append(frames, Frame{
+				Diskstats: string(diskStatsBytes),
+				Log:       string(logBytes),
+			})
 		}
 
-		c.JSON(http.StatusOK, Response{Diskstats: diskstats})
+		c.JSON(http.StatusOK, Response{Frames: frames})
+	})
+
+	router.GET("/status", func(c *gin.Context) {
+		taskLen := len(scheduler.Tasks())
+		type Response struct {
+			Recording bool `json:"recording"`
+		}
+
+		if taskLen == 0 {
+			c.JSON(http.StatusOK, Response{Recording: false})
+		} else {
+			c.JSON(http.StatusOK, Response{Recording: true})
+		}
 	})
 
 	router.POST("/record", func(c *gin.Context) {
@@ -94,16 +126,12 @@ func main() {
 		}
 
 		if request.Action == "start" {
+			hdidleLogLengh = 0
 			sessionDir := filepath.Join(dataDir, fmt.Sprintf("%d", time.Now().Unix()))
-			err := os.MkdirAll(filepath.Join(sessionDir, "diskstats"), 0750)
-			if err != nil {
-				panic(err)
-			}
 			_, err = scheduler.Add(&tasks.Task{
-				Interval: 1 * time.Second,
+				Interval: 5 * time.Second,
 				TaskFunc: func() error {
-					collectStats(sessionDir)
-					return nil
+					return collectStats(sessionDir)
 				},
 			})
 			if err != nil {
@@ -135,19 +163,65 @@ func main() {
 
 }
 
-func collectStats(dir string) {
+func collectStats(sessionDir string) error {
 	fmt.Println("Working...")
+	frameDir := filepath.Join(sessionDir, fmt.Sprintf("%d", time.Now().Unix()))
+	err := os.MkdirAll(frameDir, 0750)
+	if err != nil {
+		return err
+	}
+
+	err = collectDiskstats(frameDir)
+	if err != nil {
+		return err
+	}
+	err = collectHdIdleLog(frameDir)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func collectDiskstats(frameDir string) error {
 	bytesRead, err := os.ReadFile("/proc/diskstats")
-
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	dest := filepath.Join(filepath.Join(dir, "diskstats"), fmt.Sprintf("%d", time.Now().Unix()))
+	return os.WriteFile(filepath.Join(frameDir, "diskstats"), bytesRead, 0644)
+}
 
-	err = os.WriteFile(dest, bytesRead, 0644)
-
+func collectHdIdleLog(frameDir string) error {
+	file, err := os.Open(hdidleLogFile)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+
+	if hdidleLogLengh == 0 {
+		lineCount := 0
+		for scanner.Scan() {
+			lineCount++
+		}
+		hdidleLogLengh = lineCount
+		return os.WriteFile(filepath.Join(frameDir, "log"), []byte{}, 0644)
+	}
+
+	var l = ""
+	lineCount := 0
+	for scanner.Scan() {
+		lineCount++
+		if lineCount > hdidleLogLengh {
+			l += scanner.Text() + "\n"
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	return os.WriteFile(filepath.Join(frameDir, "log"), []byte(l), 0644)
 }

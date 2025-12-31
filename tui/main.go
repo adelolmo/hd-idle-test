@@ -21,36 +21,42 @@ const (
 	socketFile         = "/tmp/demo.sock"
 )
 
+type Frame struct {
+	Diskstats string `json:"diskstats"`
+	Log       string `json:"log"`
+}
+
 var (
-	recording = false
-	diskstats []string
-	logsView  *tview.TextView
+	recording     = false
+	app           *tview.Application
+	logsView      *tview.TextView
+	recordingView *tview.TextView
+	right         *tview.Flex
+	statsView     *tview.TextView
+	hdIdleLogView *tview.TextView
+	frames        []Frame
+	frameIndex    int
 )
 
 func main() {
-	client, err := openClient()
-	if err != nil {
-		panic(err)
-	}
-
-	statsView := tview.NewTextView()
-	statsView.SetText("generateContent(displayContent)").
+	statsView = tview.NewTextView()
+	statsView.SetText("").
 		SetTextColor(textAndBorderColor).
 		SetWordWrap(true).
 		SetBackgroundColor(backgroundColor).
-		SetBorderPadding(1, 1, 1, 1).
+		SetBorderPadding(0, 0, 1, 1).
 		SetTitleAlign(tview.AlignLeft).
 		SetBorder(true).
 		SetTitle("/proc/diskstats").
 		SetBorderColor(textAndBorderColor).
 		SetTitleColor(textAndBorderColor).
 		SetBackgroundColor(backgroundColor)
-	hdIdleLogView := tview.NewTextView()
+	hdIdleLogView = tview.NewTextView()
 	hdIdleLogView.SetText("").
 		SetTextColor(textAndBorderColor).
 		SetWordWrap(true).
 		SetBackgroundColor(backgroundColor).
-		SetBorderPadding(1, 1, 1, 1).
+		SetBorderPadding(0, 0, 1, 1).
 		SetTitleAlign(tview.AlignLeft).
 		SetBorder(true).
 		SetTitle("hd-idle log").
@@ -58,7 +64,18 @@ func main() {
 		SetTitleColor(textAndBorderColor).
 		SetBackgroundColor(backgroundColor)
 	logsView = tview.NewTextView()
-	logsView.SetText("Test").
+	logsView.SetText("").
+		SetTextColor(textAndBorderColor).
+		SetWordWrap(true).
+		SetBackgroundColor(backgroundColor).
+		SetBorderPadding(0, 0, 1, 1).
+		SetTitleAlign(tview.AlignLeft).
+		SetBorder(true).
+		SetBorderColor(textAndBorderColor).
+		SetTitleColor(textAndBorderColor).
+		SetBackgroundColor(backgroundColor)
+	recordingView = tview.NewTextView()
+	recordingView.SetText("").
 		SetTextColor(textAndBorderColor).
 		SetWordWrap(true).
 		SetBackgroundColor(backgroundColor).
@@ -79,22 +96,49 @@ func main() {
 		SetTitleColor(textAndBorderColor).
 		SetBackgroundColor(backgroundColor)
 
-	app := tview.NewApplication()
+	app = tview.NewApplication()
 
-	right := tview.NewFlex().SetDirection(tview.FlexRow).
+	right = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(statsView, 0, 2, false).
 		AddItem(hdIdleLogView, 0, 1, false)
+	right.SetFocusFunc(func() {
+		//logsView.SetText("Focus on right flex")
+	})
 
-	top := tview.NewFlex().
+	topRow := tview.NewFlex().
 		AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
 			AddItem(sessionsList, 18, 1, true).
 			AddItem(right, 0, 1, false),
 			0, 1, true)
-	bottom := tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(logsView, 0, 1, true)
+	bottomRow := tview.NewFlex().SetDirection(tview.FlexColumn).
+		AddItem(recordingView, 5, 1, false).
+		AddItem(logsView, 0, 1, false)
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(top, 0, 1, true).
-		AddItem(bottom, 3, 1, false)
+		AddItem(topRow, 0, 1, true).
+		AddItem(bottomRow, 3, 1, false)
+
+	flex.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+		case tcell.KeyEscape:
+			app.SetFocus(sessionsList)
+		case tcell.KeyRight:
+			frameIndex++
+			if frameIndex >= len(frames) {
+				frameIndex = len(frames) - 1
+			}
+			statsView.SetText(frames[frameIndex].Diskstats)
+			hdIdleLogView.SetText(frames[frameIndex].Log)
+		case tcell.KeyLeft:
+			frameIndex--
+			if frameIndex < 0 {
+				frameIndex = 0
+			}
+			statsView.SetText(frames[frameIndex].Diskstats)
+			hdIdleLogView.SetText(frames[frameIndex].Log)
+		}
+		return event
+	})
+
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Rune() {
 		case 'q':
@@ -102,21 +146,21 @@ func main() {
 		case 'r':
 			if recording {
 				logsView.SetText("Stop recording...")
-				_, err := sendDaemon(client, "/record", "{\"action\":\"stop\"}")
+				_, err := sendDaemon("/record", "{\"action\":\"stop\"}")
 				if err != nil {
 					panic(err)
 				}
-				//statsView.SetText(response)
 				go func() {
-					refreshAvailableSessions(client, sessionsList, statsView, app, flex)
+					refreshAvailableSessions(sessionsList, statsView, flex)
 				}()
+				recordingView.Clear()
 			} else {
 				logsView.SetText("Start recording...")
-				_, err := sendDaemon(client, "/record", "{\"action\":\"start\"}")
+				_, err := sendDaemon("/record", "{\"action\":\"start\"}")
 				if err != nil {
 					panic(err)
 				}
-				//statsView.SetText(response)
+				recordingView.SetText("R")
 			}
 			recording = !recording
 		}
@@ -124,17 +168,19 @@ func main() {
 	})
 
 	go func() {
-		refreshAvailableSessions(client, sessionsList, statsView, app, flex)
+		refreshAvailableSessions(sessionsList, statsView, flex)
+	}()
+	go func() {
+		updateStatus()
 	}()
 
 	if err := app.SetRoot(flex, true).Run(); err != nil {
 		panic(err)
 	}
-
 }
 
-func refreshAvailableSessions(client http.Client, sessionsList *tview.List, statsView *tview.TextView, app *tview.Application, flex *tview.Flex) {
-	sessions, err := requestSessionsFromDaemon(client)
+func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextView, flex *tview.Flex) {
+	sessions, err := requestSessionsFromDaemon()
 	if err != nil {
 		panic(err)
 	}
@@ -146,34 +192,66 @@ func refreshAvailableSessions(client http.Client, sessionsList *tview.List, stat
 		return
 	}
 
-	diskstats, err = requestSessionFromDaemon(client, sessions[sessionsList.GetCurrentItem()])
+	frames, err = requestSessionFromDaemon(sessions[sessionsList.GetCurrentItem()])
 	if err != nil {
 		logsView.SetText("Error loading session. " + err.Error())
 		statsView.Clear()
 		return
 	}
 	logsView.SetText(fmt.Sprintf("Loading session %s...", sessions[sessionsList.GetCurrentItem()]))
-	statsView.SetText(diskstats[0])
+	statsView.SetText(frames[0].Diskstats)
+	logsView.SetText(frames[0].Log)
 
 	for i := range sessions {
 		runes := []rune(strconv.Itoa(i + 1))
 		sessionsList.AddItem(sessions[i], "", runes[0], func() {
 			logsView.SetText(fmt.Sprintf("Loading session %s...", sessions[i]))
-			diskstats, err = requestSessionFromDaemon(client, sessions[sessionsList.GetCurrentItem()])
+			frames, err = requestSessionFromDaemon(sessions[sessionsList.GetCurrentItem()])
 			if err != nil {
 				logsView.SetText("Error loading session. " + err.Error())
 				statsView.Clear()
 				return
 			}
-			statsView.SetText(diskstats[0])
+			statsView.SetText(frames[0].Diskstats)
+			logsView.SetText(frames[0].Log)
+			logsView.SetText(fmt.Sprintf("Session %s", sessions[i]))
 
-			app.SetFocus(flex)
+			app.SetFocus(right)
 		})
 	}
 	app.Draw()
 }
 
-func requestSessionsFromDaemon(c http.Client) ([]string, error) {
+func updateStatus() {
+	client, err := openClient()
+	if err != nil {
+		panic(err)
+	}
+
+	resp, err := client.Get("http://unix/status")
+	if err != nil {
+		//return nil, err
+		logsView.SetText("Error getting status. " + err.Error())
+		return
+	}
+
+	type Response struct {
+		Recording bool `json:"recording"`
+	}
+	var response Response
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		logsView.SetText("Error getting status. " + err.Error())
+		return
+	}
+
+	recordingView.Clear()
+	if response.Recording {
+		recording = true
+		recordingView.SetText("R")
+	}
+}
+
+func requestSessionsFromDaemon() ([]string, error) {
 	client, err := openClient()
 	if err != nil {
 		panic(err)
@@ -194,7 +272,7 @@ func requestSessionsFromDaemon(c http.Client) ([]string, error) {
 	return response.Sessions, nil
 }
 
-func requestSessionFromDaemon(c http.Client, id string) ([]string, error) {
+func requestSessionFromDaemon(id string) ([]Frame, error) {
 	client, err := openClient()
 	if err != nil {
 		panic(err)
@@ -204,20 +282,19 @@ func requestSessionFromDaemon(c http.Client, id string) ([]string, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
 	type Response struct {
-		Diskstats []string `json:"diskstats"`
+		Frames []Frame `json:"frames"`
 	}
 
 	var response Response
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, fmt.Errorf("unable to parse response body. " + err.Error())
 	}
-	return response.Diskstats, nil
+	return response.Frames, nil
 }
 
-func sendDaemon(c http.Client, endpoint, message string) (string, error) {
-
-	// Send a GET request to the server
+func sendDaemon(endpoint, message string) (string, error) {
 	client, err := openClient()
 	if err != nil {
 		panic(err)
@@ -228,7 +305,6 @@ func sendDaemon(c http.Client, endpoint, message string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	// Read the response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
@@ -240,10 +316,9 @@ func sendDaemon(c http.Client, endpoint, message string) (string, error) {
 func openClient() (http.Client, error) {
 	conn, err := net.Dial("unix", socketFile)
 	if err != nil {
-		panic(err)
+		return http.Client{}, err
 	}
 
-	// Create an HTTP client with the Unix socket connection
 	c := http.Client{
 		Transport: &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
