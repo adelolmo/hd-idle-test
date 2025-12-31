@@ -18,7 +18,7 @@ import (
 const (
 	textAndBorderColor = tcell.ColorDarkGrey
 	backgroundColor    = tcell.ColorDefault
-	socketFile         = "/tmp/demo.sock"
+	socketFile         = "/tmp/hdtd.sock"
 )
 
 type Frame struct {

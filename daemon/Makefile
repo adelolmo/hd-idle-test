@@ -30,4 +30,16 @@ ifeq ($(GOARCH),)
 endif
 
 $(TARGET):
-	GOOS=linux GOARCH=$(GOARCH) go build
+	GOOS=linux GOARCH=$(GOARCH) go build -o $(TARGET)
+
+.PHONY: tidy
+tidy:
+	go mod tidy
+
+.PHONY: vendor
+vendor: tidy
+	go mod vendor
+
+.PHONY: clean
+clean:
+	rm -f $(TARGET)

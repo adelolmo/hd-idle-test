@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	socketFile    = "/tmp/demo.sock"
+	socketFile    = "/tmp/hdtd.sock"
 	hdidleLogFile = "/var/log/hd-idle.log"
 )
 
@@ -147,15 +147,15 @@ func main() {
 		c.Status(http.StatusOK)
 	})
 
-	err = os.Remove(socketFile)
-	if err != nil {
-		panic(err)
-	}
+	_ = os.Remove(socketFile)
 	listener, err := net.Listen("unix", socketFile)
 	if err != nil {
 		panic(err)
 	}
-
+	err = os.Chmod(socketFile, 0777)
+	if err != nil {
+		panic(err)
+	}
 	err = http.Serve(listener, router)
 	if err != nil {
 		panic(err)

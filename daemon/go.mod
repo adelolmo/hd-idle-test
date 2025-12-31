@@ -2,7 +2,7 @@ module github.com/adelolmo/hd-idle-test-daemon
 
 go 1.24.0
 
-toolchain go1.24.5
+toolchain go1.24.4
 
 require (
 	github.com/gin-gonic/gin v1.11.0
