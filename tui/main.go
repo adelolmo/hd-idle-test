@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	//"github.com/gdamore/tcell/v2"
 	"github.com/gdamore/tcell/v2"
@@ -22,23 +23,56 @@ const (
 )
 
 type Frame struct {
+	Id        string `json:"id"`
 	Diskstats string `json:"diskstats"`
 	Log       string `json:"log"`
 }
 
+func (f Frame) timestamp() string {
+	unixTimestamp, _ := strconv.ParseInt(f.Id, 10, 64)
+	return time.Unix(unixTimestamp, 0).Format("02 Jan 15:04:05")
+}
+
 var (
-	recording     = false
-	app           *tview.Application
-	logsView      *tview.TextView
-	recordingView *tview.TextView
-	right         *tview.Flex
-	statsView     *tview.TextView
-	hdIdleLogView *tview.TextView
-	frames        []Frame
-	frameIndex    int
+	recording      = false
+	app            *tview.Application
+	paginationView *tview.TextView
+	framesView     *tview.TextView
+	logsView       *tview.TextView
+	recordingView  *tview.TextView
+	right          *tview.Flex
+	statsView      *tview.TextView
+	hdIdleLogView  *tview.TextView
+	frames         []Frame
+	frameIndex     int
 )
 
 func main() {
+	paginationView = tview.NewTextView()
+	paginationView.SetText("0 of 0").
+		SetTextAlign(tview.AlignCenter).
+		SetTextColor(textAndBorderColor).
+		SetWordWrap(true).
+		SetBackgroundColor(backgroundColor).
+		SetBorderPadding(0, 0, 1, 1).
+		SetBorder(true).
+		//SetTitle("/proc/diskstats").
+		SetBorderColor(textAndBorderColor).
+		SetTitleColor(textAndBorderColor).
+		SetBackgroundColor(backgroundColor)
+	framesView = tview.NewTextView()
+	framesView.SetText("").
+		SetTextAlign(tview.AlignCenter).
+		SetTextColor(textAndBorderColor).
+		SetWordWrap(true).
+		SetBackgroundColor(backgroundColor).
+		SetBorderPadding(0, 0, 1, 1).
+		SetTitleAlign(tview.AlignLeft).
+		SetBorder(true).
+		//SetTitle("/proc/diskstats").
+		SetBorderColor(textAndBorderColor).
+		SetTitleColor(textAndBorderColor).
+		SetBackgroundColor(backgroundColor)
 	statsView = tview.NewTextView()
 	statsView.SetText("").
 		SetTextColor(textAndBorderColor).
@@ -98,8 +132,13 @@ func main() {
 
 	app = tview.NewApplication()
 
+	paginationColumn := tview.NewFlex().SetDirection(tview.FlexColumn).
+		AddItem(paginationView, 0, 1, false).
+		AddItem(framesView, 0, 6, false)
+
 	right = tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(statsView, 0, 2, false).
+		AddItem(paginationColumn, 3, 1, false).
+		AddItem(statsView, 0, 3, false).
 		AddItem(hdIdleLogView, 0, 1, false)
 	right.SetFocusFunc(func() {
 		//logsView.SetText("Focus on right flex")
@@ -126,6 +165,8 @@ func main() {
 			if frameIndex >= len(frames) {
 				frameIndex = len(frames) - 1
 			}
+			paginationView.SetText(fmt.Sprintf("%d of %d", frameIndex+1, len(frames)))
+			framesView.SetText(frames[frameIndex].timestamp())
 			statsView.SetText(frames[frameIndex].Diskstats)
 			hdIdleLogView.SetText(frames[frameIndex].Log)
 		case tcell.KeyLeft:
@@ -133,6 +174,8 @@ func main() {
 			if frameIndex < 0 {
 				frameIndex = 0
 			}
+			paginationView.SetText(fmt.Sprintf("%d of %d", frameIndex+1, len(frames)))
+			framesView.SetText(frames[frameIndex].timestamp())
 			statsView.SetText(frames[frameIndex].Diskstats)
 			hdIdleLogView.SetText(frames[frameIndex].Log)
 		}
@@ -199,6 +242,8 @@ func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextVie
 		statsView.Clear()
 		return
 	}
+	paginationView.SetText(fmt.Sprintf("1 of %d", len(sessions)))
+	framesView.SetText(frames[0].timestamp())
 	logsView.SetText(fmt.Sprintf("Loading session %s...", sessions[sessionsList.GetCurrentItem()]))
 	statsView.SetText(frames[0].Diskstats)
 	logsView.SetText(frames[0].Log)
@@ -213,6 +258,9 @@ func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextVie
 				statsView.Clear()
 				return
 			}
+			frameIndex = 0
+			paginationView.SetText(fmt.Sprintf("1 of %d", len(frames)))
+			framesView.SetText(frames[0].timestamp())
 			statsView.SetText(frames[0].Diskstats)
 			logsView.SetText(frames[0].Log)
 			logsView.SetText(fmt.Sprintf("Session %s", sessions[i]))

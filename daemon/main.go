@@ -60,6 +60,7 @@ func main() {
 		sessionDir := filepath.Join(dataDir, c.Param("id"))
 
 		type Frame struct {
+			Id        string `json:"id"`
 			Diskstats string `json:"diskstats"`
 			Log       string `json:"log"`
 		}
@@ -93,6 +94,7 @@ func main() {
 				return
 			}
 			frames = append(frames, Frame{
+				Id:        e.Name(),
 				Diskstats: string(diskStatsBytes),
 				Log:       string(logBytes),
 			})
