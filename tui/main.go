@@ -20,6 +20,16 @@ const (
 	textAndBorderColor = tcell.ColorDarkGrey
 	backgroundColor    = tcell.ColorDefault
 	socketFile         = "/tmp/hdtd.sock"
+
+	Reset   = "\033[0m"
+	Red     = "\033[31m"
+	Green   = "\033[32m"
+	Yellow  = "\033[33m"
+	Blue    = "\033[34m"
+	Magenta = "\033[35m"
+	Cyan    = "\033[36m"
+	Gray    = "\033[37m"
+	White   = "\033[97m"
 )
 
 type Frame struct {
@@ -29,8 +39,7 @@ type Frame struct {
 }
 
 func (f Frame) timestamp() string {
-	unixTimestamp, _ := strconv.ParseInt(f.Id, 10, 64)
-	return time.Unix(unixTimestamp, 0).Format("02 Jan 15:04:05")
+	return formatFromUnixTime(f.Id)
 }
 
 var (
@@ -45,6 +54,7 @@ var (
 	hdIdleLogView  *tview.TextView
 	frames         []Frame
 	frameIndex     int
+	line           int
 )
 
 func main() {
@@ -128,7 +138,11 @@ func main() {
 		SetTitle("Sessions").
 		SetBorderColor(textAndBorderColor).
 		SetTitleColor(textAndBorderColor).
-		SetBackgroundColor(backgroundColor)
+		SetBackgroundColor(backgroundColor).
+		SetFocusFunc(func() {
+
+		},
+		)
 
 	app = tview.NewApplication()
 
@@ -146,7 +160,7 @@ func main() {
 
 	topRow := tview.NewFlex().
 		AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
-			AddItem(sessionsList, 18, 1, true).
+			AddItem(sessionsList, 23, 1, true).
 			AddItem(right, 0, 1, false),
 			0, 1, true)
 	bottomRow := tview.NewFlex().SetDirection(tview.FlexColumn).
@@ -156,7 +170,7 @@ func main() {
 		AddItem(topRow, 0, 1, true).
 		AddItem(bottomRow, 3, 1, false)
 
-	flex.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	right.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
 		case tcell.KeyEscape:
 			app.SetFocus(sessionsList)
@@ -178,6 +192,19 @@ func main() {
 			framesView.SetText(frames[frameIndex].timestamp())
 			statsView.SetText(frames[frameIndex].Diskstats)
 			hdIdleLogView.SetText(frames[frameIndex].Log)
+		case tcell.KeyDown:
+			line++
+			_, _, _, height := statsView.GetRect()
+			if line > statsView.GetWrappedLineCount()-height+1 {
+				line = statsView.GetWrappedLineCount() - height + 1
+			}
+			statsView.ScrollTo(line, 0)
+		case tcell.KeyUp:
+			line--
+			if line < 0 {
+				line = 0
+			}
+			statsView.ScrollTo(line, 0)
 		}
 		return event
 	})
@@ -250,7 +277,7 @@ func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextVie
 
 	for i := range sessions {
 		runes := []rune(strconv.Itoa(i + 1))
-		sessionsList.AddItem(sessions[i], "", runes[0], func() {
+		sessionsList.AddItem(sessions[i], formatFromUnixTime(sessions[i]), runes[0], func() {
 			logsView.SetText(fmt.Sprintf("Loading session %s...", sessions[i]))
 			frames, err = requestSessionFromDaemon(sessions[sessionsList.GetCurrentItem()])
 			if err != nil {
@@ -376,4 +403,9 @@ func openClient() (http.Client, error) {
 		},
 	}
 	return c, err
+}
+
+func formatFromUnixTime(date string) string {
+	unixTimestamp, _ := strconv.ParseInt(date, 10, 64)
+	return time.Unix(unixTimestamp, 0).Format("02 Jan 15:04:05")
 }
