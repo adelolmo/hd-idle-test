@@ -50,7 +50,11 @@ func main() {
 		}
 
 		for i := range sessionDirNames {
-			sessionDirs = append(sessionDirs, sessionDirNames[i].Name())
+			dirEntry := sessionDirNames[i]
+			if !dirEntry.IsDir() {
+				continue
+			}
+			sessionDirs = append(sessionDirs, dirEntry.Name())
 		}
 
 		c.JSON(http.StatusOK, Response{Sessions: sessionDirs})
