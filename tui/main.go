@@ -19,6 +19,7 @@ import (
 const (
 	textAndBorderColor = tcell.ColorDarkGrey
 	backgroundColor    = tcell.ColorDefault
+	colorBlack         = tcell.Color16
 	socketFile         = "/tmp/hdtd.sock"
 
 	Reset   = "\033[0m"
@@ -58,6 +59,8 @@ var (
 )
 
 func main() {
+	dim := tcell.StyleDefault.Dim(true)
+
 	paginationView = tview.NewTextView()
 	paginationView.SetText("0 of 0").
 		SetTextAlign(tview.AlignCenter).
@@ -66,9 +69,7 @@ func main() {
 		SetBackgroundColor(backgroundColor).
 		SetBorderPadding(0, 0, 1, 1).
 		SetBorder(true).
-		//SetTitle("/proc/diskstats").
-		SetBorderColor(textAndBorderColor).
-		SetTitleColor(textAndBorderColor).
+		SetBorderStyle(dim).
 		SetBackgroundColor(backgroundColor)
 	framesView = tview.NewTextView()
 	framesView.SetText("").
@@ -79,9 +80,7 @@ func main() {
 		SetBorderPadding(0, 0, 1, 1).
 		SetTitleAlign(tview.AlignLeft).
 		SetBorder(true).
-		//SetTitle("/proc/diskstats").
-		SetBorderColor(textAndBorderColor).
-		SetTitleColor(textAndBorderColor).
+		SetBorderStyle(dim).
 		SetBackgroundColor(backgroundColor)
 	statsView = tview.NewTextView()
 	statsView.SetText("").
@@ -92,7 +91,7 @@ func main() {
 		SetTitleAlign(tview.AlignLeft).
 		SetBorder(true).
 		SetTitle("/proc/diskstats").
-		SetBorderColor(textAndBorderColor).
+		SetBorderStyle(dim).
 		SetTitleColor(textAndBorderColor).
 		SetBackgroundColor(backgroundColor)
 	hdIdleLogView = tview.NewTextView()
@@ -104,7 +103,7 @@ func main() {
 		SetTitleAlign(tview.AlignLeft).
 		SetBorder(true).
 		SetTitle("hd-idle log").
-		SetBorderColor(textAndBorderColor).
+		SetBorderStyle(dim).
 		SetTitleColor(textAndBorderColor).
 		SetBackgroundColor(backgroundColor)
 	logsView = tview.NewTextView()
@@ -154,6 +153,7 @@ func main() {
 		AddItem(paginationColumn, 3, 1, false).
 		AddItem(statsView, 0, 3, false).
 		AddItem(hdIdleLogView, 0, 1, false)
+	right.SetBorder(true).SetBorderStyle(tcell.StyleDefault)
 	right.SetFocusFunc(func() {
 		//logsView.SetText("Focus on right flex")
 	})
@@ -273,7 +273,7 @@ func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextVie
 	framesView.SetText(frames[0].timestamp())
 	logsView.SetText(fmt.Sprintf("Loading session %s...", sessions[sessionsList.GetCurrentItem()]))
 	statsView.SetText(frames[0].Diskstats)
-	logsView.SetText(frames[0].Log)
+	hdIdleLogView.SetText(frames[0].Log)
 
 	for i := range sessions {
 		runes := []rune(strconv.Itoa(i + 1))
@@ -289,7 +289,7 @@ func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextVie
 			paginationView.SetText(fmt.Sprintf("1 of %d", len(frames)))
 			framesView.SetText(frames[0].timestamp())
 			statsView.SetText(frames[0].Diskstats)
-			logsView.SetText(frames[0].Log)
+			hdIdleLogView.SetText(frames[0].Log)
 			logsView.SetText(fmt.Sprintf("Session %s", sessions[i]))
 
 			app.SetFocus(right)
@@ -306,7 +306,6 @@ func updateStatus() {
 
 	resp, err := client.Get("http://unix/status")
 	if err != nil {
-		//return nil, err
 		logsView.SetText("Error getting status. " + err.Error())
 		return
 	}

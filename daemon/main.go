@@ -133,7 +133,6 @@ func main() {
 			_, err = scheduler.Add(&tasks.Task{
 				Interval:          5 * time.Second,
 				RunSingleInstance: true,
-				RunOnce:           true,
 				TaskFunc: func() error {
 					return collectStats(sessionDir)
 				},
@@ -168,7 +167,7 @@ func main() {
 }
 
 func collectStats(sessionDir string) error {
-	fmt.Println("Working...")
+	//fmt.Println("Working...")
 	frameDir := filepath.Join(sessionDir, fmt.Sprintf("%d", time.Now().Unix()))
 	err := os.MkdirAll(frameDir, 0750)
 	if err != nil {
