@@ -18,11 +18,13 @@ import (
 const (
 	socketFile          = "/tmp/hdtd.sock"
 	hdidleLogFile       = "/var/log/hd-idle.log"
+	hdidleStdoutFile    = "/tmp/hd-idle.out"
 	diskMappingFileName = "disk_mapping.txt"
 )
 
 var (
-	hdidleLogLength = 0
+	hdidleLogLength    = 0
+	hdidleStdoutLength = 0
 )
 
 func main() {
@@ -79,6 +81,7 @@ func main() {
 			Id        string `json:"id"`
 			Diskstats string `json:"diskstats"`
 			Log       string `json:"log"`
+			Stdout    string `json:"stdout"`
 		}
 		type Response struct {
 			Frames []Frame `json:"frames"`
@@ -102,17 +105,24 @@ func main() {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
-
 			logBytes, err := os.ReadFile(filepath.Join(sessionDir, e.Name(), "log"))
 			if err != nil {
 				log.Println(err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
+			stdoutBytes, err := os.ReadFile(filepath.Join(sessionDir, e.Name(), "stdout"))
+			if err != nil {
+				log.Println(err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+
 			frames = append(frames, Frame{
 				Id:        e.Name(),
 				Diskstats: string(diskStatsBytes),
 				Log:       string(logBytes),
+				Stdout:    string(stdoutBytes),
 			})
 		}
 
@@ -205,7 +215,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 }
 
 func collectStats(dataDir, sessionDir string) error {
@@ -224,6 +233,10 @@ func collectStats(dataDir, sessionDir string) error {
 	if err != nil {
 		return err
 	}
+	err = collectHdIdleStdout(dataDir, frameDir)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -238,7 +251,14 @@ func collectDiskstats(frameDir string) error {
 }
 
 func collectHdIdleLog(dataDir, frameDir string) error {
-	file, err := os.Open(hdidleLogFile)
+	return collectLog(dataDir, hdidleLogFile, filepath.Join(frameDir, "log"), &hdidleLogLength)
+}
+func collectHdIdleStdout(dataDir, frameDir string) error {
+	return collectLog(dataDir, hdidleStdoutFile, filepath.Join(frameDir, "stdout"), &hdidleStdoutLength)
+}
+
+func collectLog(dataDir, originLogPath, destLogPath string, logLen *int) error {
+	file, err := os.Open(originLogPath)
 	if err != nil {
 		return err
 	}
@@ -246,20 +266,20 @@ func collectHdIdleLog(dataDir, frameDir string) error {
 
 	scanner := bufio.NewScanner(file)
 
-	if hdidleLogLength == 0 {
+	if *logLen == 0 {
 		lineCount := 0
 		for scanner.Scan() {
 			lineCount++
 		}
-		hdidleLogLength = lineCount
-		return os.WriteFile(filepath.Join(frameDir, "log"), []byte{}, 0644)
+		*logLen = lineCount
+		return os.WriteFile(destLogPath, []byte{}, 0644)
 	}
 
 	var hdLog = ""
 	lineCount := 0
 	for scanner.Scan() {
 		lineCount++
-		if lineCount > hdidleLogLength {
+		if lineCount > *logLen {
 			line := scanner.Text()
 			disk := getDisk(line)
 			if err = handleDiskMapping(dataDir, disk); err != nil {
@@ -274,7 +294,7 @@ func collectHdIdleLog(dataDir, frameDir string) error {
 		return err
 	}
 
-	return os.WriteFile(filepath.Join(frameDir, "log"), []byte(hdLog), 0644)
+	return os.WriteFile(destLogPath, []byte(hdLog), 0644)
 }
 
 func handleDiskMapping(dataDir, disk string) error {
