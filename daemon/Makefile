@@ -50,6 +50,7 @@ install:
 	install -Dm755 $(TARGET) $(DESTDIR)$(BIN_DIR)/$(TARGET)
 	install -Dm644 $(TARGET).service $(DESTDIR)/lib/systemd/system/$(TARGET).service
 	systemctl daemon-reload
+	systemctl enable --now $(TARGET)
 
 .PHONY: uninstall
 uninstall:
