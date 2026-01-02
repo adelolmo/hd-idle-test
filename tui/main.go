@@ -38,6 +38,7 @@ type Frame struct {
 	Id        string `json:"id"`
 	Diskstats string `json:"diskstats"`
 	Log       string `json:"log"`
+	Stdout    string `json:"stdout"`
 }
 
 func (f Frame) timestamp() string {
@@ -235,6 +236,7 @@ func main() {
 			paginationView.SetText(fmt.Sprintf("%d of %d", frameIndex+1, len(frames)))
 			framesView.SetText(frames[frameIndex].timestamp())
 			statsView.SetText(frames[frameIndex].adaptedDiskstats())
+			hdIdleStdoutView.SetText(frames[frameIndex].Stdout)
 			hdIdleLogView.SetText(frames[frameIndex].adaptedLog())
 		case tcell.KeyLeft:
 			frameIndex--
@@ -244,6 +246,7 @@ func main() {
 			paginationView.SetText(fmt.Sprintf("%d of %d", frameIndex+1, len(frames)))
 			framesView.SetText(frames[frameIndex].timestamp())
 			statsView.SetText(frames[frameIndex].adaptedDiskstats())
+			hdIdleStdoutView.SetText(frames[frameIndex].Stdout)
 			hdIdleLogView.SetText(frames[frameIndex].adaptedLog())
 		case tcell.KeyDown:
 			line++
@@ -326,6 +329,7 @@ func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextVie
 	framesView.SetText(frames[0].timestamp())
 	logsView.SetText(fmt.Sprintf("Loading session %s...", sessions[sessionsList.GetCurrentItem()]))
 	statsView.SetText(frames[0].adaptedDiskstats())
+	hdIdleStdoutView.SetText(frames[0].Stdout)
 	hdIdleLogView.SetText(frames[0].Log)
 
 	for i := range sessions {
@@ -342,6 +346,7 @@ func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextVie
 			paginationView.SetText(fmt.Sprintf("1 of %d", len(frames)))
 			framesView.SetText(frames[frameIndex].timestamp())
 			statsView.SetText(frames[frameIndex].adaptedDiskstats())
+			hdIdleStdoutView.SetText(frames[frameIndex].Stdout)
 			hdIdleLogView.SetText(frames[frameIndex].Log)
 			logsView.SetText(fmt.Sprintf("Session %s", sessions[i]))
 
