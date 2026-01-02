@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,12 +16,13 @@ import (
 )
 
 const (
-	socketFile    = "/tmp/hdtd.sock"
-	hdidleLogFile = "/var/log/hd-idle.log"
+	socketFile          = "/tmp/hdtd.sock"
+	hdidleLogFile       = "/var/log/hd-idle.log"
+	diskMappingFileName = "disk_mapping.txt"
 )
 
 var (
-	hdidleLogLengh = 0
+	hdidleLogLength = 0
 )
 
 func main() {
@@ -37,6 +39,15 @@ func main() {
 		panic(err)
 	}
 
+	_, err = os.Stat(filepath.Join(dataDir, diskMappingFileName))
+	if os.IsNotExist(err) {
+		file, err := os.Create(filepath.Join(dataDir, diskMappingFileName))
+		if err != nil {
+			panic(err)
+		}
+		defer file.Close()
+	}
+
 	router.GET("/sessions", func(c *gin.Context) {
 		type Response struct {
 			Sessions []string `json:"sessions"`
@@ -47,6 +58,7 @@ func main() {
 		if err != nil {
 			log.Println(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
 
 		for i := range sessionDirNames {
@@ -109,15 +121,41 @@ func main() {
 
 	router.GET("/status", func(c *gin.Context) {
 		taskLen := len(scheduler.Tasks())
-		type Response struct {
-			Recording bool `json:"recording"`
+
+		diskMappingFile, err := os.Open(filepath.Join(dataDir, diskMappingFileName))
+		if err != nil {
+			log.Println(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		defer diskMappingFile.Close()
+
+		mapping := make(map[string]string)
+		scanner := bufio.NewScanner(diskMappingFile)
+		for scanner.Scan() {
+			mappingParts := strings.Split(scanner.Text(), ":")
+			mapping[mappingParts[0]] = mappingParts[1]
 		}
 
-		if taskLen == 0 {
-			c.JSON(http.StatusOK, Response{Recording: false})
-		} else {
-			c.JSON(http.StatusOK, Response{Recording: true})
+		if err := scanner.Err(); err != nil {
+			log.Println(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
+
+		type Response struct {
+			Recording   bool              `json:"recording"`
+			DiskMapping map[string]string `json:"disk_mapping"`
+		}
+
+		recording := false
+		if taskLen > 0 {
+			recording = true
+		}
+		c.JSON(http.StatusOK,
+			Response{Recording: recording,
+				DiskMapping: mapping})
+
 	})
 
 	router.POST("/record", func(c *gin.Context) {
@@ -132,13 +170,13 @@ func main() {
 		}
 
 		if request.Action == "start" {
-			hdidleLogLengh = 0
+			hdidleLogLength = 0
 			sessionDir := filepath.Join(dataDir, fmt.Sprintf("%d", time.Now().Unix()))
 			_, err = scheduler.Add(&tasks.Task{
 				Interval:          5 * time.Second,
 				RunSingleInstance: true,
 				TaskFunc: func() error {
-					return collectStats(sessionDir)
+					return collectStats(dataDir, sessionDir)
 				},
 			})
 			if err != nil {
@@ -170,7 +208,7 @@ func main() {
 
 }
 
-func collectStats(sessionDir string) error {
+func collectStats(dataDir, sessionDir string) error {
 	//fmt.Println("Working...")
 	frameDir := filepath.Join(sessionDir, fmt.Sprintf("%d", time.Now().Unix()))
 	err := os.MkdirAll(frameDir, 0750)
@@ -182,7 +220,7 @@ func collectStats(sessionDir string) error {
 	if err != nil {
 		return err
 	}
-	err = collectHdIdleLog(frameDir)
+	err = collectHdIdleLog(dataDir, frameDir)
 	if err != nil {
 		return err
 	}
@@ -199,7 +237,7 @@ func collectDiskstats(frameDir string) error {
 	return os.WriteFile(filepath.Join(frameDir, "diskstats"), bytesRead, 0644)
 }
 
-func collectHdIdleLog(frameDir string) error {
+func collectHdIdleLog(dataDir, frameDir string) error {
 	file, err := os.Open(hdidleLogFile)
 	if err != nil {
 		return err
@@ -208,21 +246,27 @@ func collectHdIdleLog(frameDir string) error {
 
 	scanner := bufio.NewScanner(file)
 
-	if hdidleLogLengh == 0 {
+	if hdidleLogLength == 0 {
 		lineCount := 0
 		for scanner.Scan() {
 			lineCount++
 		}
-		hdidleLogLengh = lineCount
+		hdidleLogLength = lineCount
 		return os.WriteFile(filepath.Join(frameDir, "log"), []byte{}, 0644)
 	}
 
-	var l = ""
+	var hdLog = ""
 	lineCount := 0
 	for scanner.Scan() {
 		lineCount++
-		if lineCount > hdidleLogLengh {
-			l += scanner.Text() + "\n"
+		if lineCount > hdidleLogLength {
+			line := scanner.Text()
+			disk := getDisk(line)
+			if err = handleDiskMapping(dataDir, disk); err != nil {
+				return err
+			}
+
+			hdLog += line + "\n"
 		}
 	}
 
@@ -230,5 +274,51 @@ func collectHdIdleLog(frameDir string) error {
 		return err
 	}
 
-	return os.WriteFile(filepath.Join(frameDir, "log"), []byte(l), 0644)
+	return os.WriteFile(filepath.Join(frameDir, "log"), []byte(hdLog), 0644)
+}
+
+func handleDiskMapping(dataDir, disk string) error {
+	if !strings.HasPrefix(disk, "/") {
+		return nil
+	}
+
+	diskMappingFile := filepath.Join(dataDir, diskMappingFileName)
+	if data, err := os.ReadFile(diskMappingFile); err == nil {
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			if strings.Contains(line, disk) {
+				return nil
+			}
+		}
+	}
+
+	s, err := os.Readlink(disk)
+	if err != nil {
+		return err
+	}
+
+	device := filepath.Base(s)
+
+	f, err := os.OpenFile(diskMappingFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	mappingLine := fmt.Sprintf("%s:%s", disk, device)
+	if _, err = f.WriteString(mappingLine + "\n"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func getDisk(line string) string {
+	dataEntries := strings.Split(line, ",")
+	for i := range dataEntries {
+		dataPair := strings.Split(dataEntries[i], ":")
+		if dataPair[0] == "disk" {
+			return strings.TrimSpace(dataPair[1])
+		}
+	}
+	return ""
 }

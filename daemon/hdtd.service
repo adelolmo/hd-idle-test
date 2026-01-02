@@ -1,0 +1,14 @@
+[Unit]
+Description=Help testing hd-idle for real usecase scenarios
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/hdtd
+SyslogIdentifier=hdtd
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

@@ -43,8 +43,17 @@ func (f Frame) timestamp() string {
 	return formatFromUnixTime(f.Id)
 }
 
+func (f Frame) adaptedLog() string {
+	for disk, path := range diskMapping {
+		redacted := fmt.Sprintf("%s [%s]", path, disk)
+		f.Log = strings.ReplaceAll(f.Log, disk, redacted)
+	}
+	return f.Log
+}
+
 var (
 	recording      = false
+	diskMapping    map[string]string
 	app            *tview.Application
 	paginationView *tview.TextView
 	framesView     *tview.TextView
@@ -182,7 +191,7 @@ func main() {
 			paginationView.SetText(fmt.Sprintf("%d of %d", frameIndex+1, len(frames)))
 			framesView.SetText(frames[frameIndex].timestamp())
 			statsView.SetText(frames[frameIndex].Diskstats)
-			hdIdleLogView.SetText(frames[frameIndex].Log)
+			hdIdleLogView.SetText(frames[frameIndex].adaptedLog())
 		case tcell.KeyLeft:
 			frameIndex--
 			if frameIndex < 0 {
@@ -191,7 +200,7 @@ func main() {
 			paginationView.SetText(fmt.Sprintf("%d of %d", frameIndex+1, len(frames)))
 			framesView.SetText(frames[frameIndex].timestamp())
 			statsView.SetText(frames[frameIndex].Diskstats)
-			hdIdleLogView.SetText(frames[frameIndex].Log)
+			hdIdleLogView.SetText(frames[frameIndex].adaptedLog())
 		case tcell.KeyDown:
 			line++
 			_, _, _, height := statsView.GetRect()
@@ -311,7 +320,8 @@ func updateStatus() {
 	}
 
 	type Response struct {
-		Recording bool `json:"recording"`
+		Recording   bool              `json:"recording"`
+		DiskMapping map[string]string `json:"disk_mapping"`
 	}
 	var response Response
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
@@ -319,6 +329,7 @@ func updateStatus() {
 		return
 	}
 
+	diskMapping = response.DiskMapping
 	recordingView.Clear()
 	if response.Recording {
 		recording = true

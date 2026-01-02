@@ -1,4 +1,5 @@
 TARGET = hdtd
+BIN_DIR=/usr/bin
 PLATFORM := $(shell uname -m)
 
 ARCH :=
@@ -30,7 +31,7 @@ ifeq ($(GOARCH),)
 endif
 
 $(TARGET):
-	GOOS=linux GOARCH=$(GOARCH) go build -o $(TARGET)
+	GOOS=linux GOARCH=$(GOARCH) GO111MODULE=on go build -o $(TARGET)
 
 .PHONY: tidy
 tidy:
@@ -43,3 +44,14 @@ vendor: tidy
 .PHONY: clean
 clean:
 	rm -f $(TARGET)
+
+.PHONY: install
+install:
+	install -Dm755 $(TARGET) $(DESTDIR)$(BIN_DIR)/$(TARGET)
+	install -Dm644 $(TARGET).service $(DESTDIR)/lib/systemd/system/$(TARGET).service
+	systemctl daemon-reload
+
+.PHONY: uninstall
+uninstall:
+	rm -f $(DESTDIR)$(BIN_DIR)/$(TARGET)
+	rm -f $(DESTDIR)/lib/systemd/system/$(TARGET).service

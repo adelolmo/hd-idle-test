@@ -43,3 +43,11 @@ vendor: tidy
 .PHONY: clean
 clean:
 	rm -f $(TARGET)
+
+.PHONY: install
+install:
+	install -Dm755 $(TARGET) $(DESTDIR)$(BIN_DIR)/$(TARGET)
+
+.PHONY: uninstall
+uninstall:
+	rm -f $(DESTDIR)$(BIN_DIR)/$(TARGET)
