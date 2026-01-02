@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -43,6 +44,32 @@ func (f Frame) timestamp() string {
 	return formatFromUnixTime(f.Id)
 }
 
+func (f Frame) adaptedDiskstats() string {
+	reader := strings.NewReader(f.Diskstats)
+	scanner := bufio.NewScanner(reader)
+	i := 0
+	statsLines := strings.Split(f.Diskstats, "\n")
+	for scanner.Scan() {
+		text := scanner.Text()
+		cols := strings.Fields(text)
+		if len(cols) < 10 {
+			continue
+		}
+		coloredLine := text
+		reads := cols[5]
+		coloredLine = strings.ReplaceAll(coloredLine, reads,
+			fmt.Sprintf(`[white]%s[#999999]`, reads))
+		writes := " " + cols[9] + " "
+		coloredLine = strings.ReplaceAll(coloredLine, writes,
+			fmt.Sprintf(`[white]%s[#999999]`, writes))
+
+		statsLines[i] = coloredLine
+
+		i++
+	}
+	return strings.Join(statsLines, "\n")
+}
+
 func (f Frame) adaptedLog() string {
 	for disk, path := range diskMapping {
 		redacted := fmt.Sprintf("%s [%s]", path, disk)
@@ -52,19 +79,20 @@ func (f Frame) adaptedLog() string {
 }
 
 var (
-	recording      = false
-	diskMapping    map[string]string
-	app            *tview.Application
-	paginationView *tview.TextView
-	framesView     *tview.TextView
-	logsView       *tview.TextView
-	recordingView  *tview.TextView
-	right          *tview.Flex
-	statsView      *tview.TextView
-	hdIdleLogView  *tview.TextView
-	frames         []Frame
-	frameIndex     int
-	line           int
+	recording        = false
+	diskMapping      map[string]string
+	app              *tview.Application
+	paginationView   *tview.TextView
+	framesView       *tview.TextView
+	logsView         *tview.TextView
+	recordingView    *tview.TextView
+	right            *tview.Flex
+	statsView        *tview.TextView
+	hdIdleLogView    *tview.TextView
+	hdIdleStdoutView *tview.TextView
+	frames           []Frame
+	frameIndex       int
+	line             int
 )
 
 func main() {
@@ -93,6 +121,7 @@ func main() {
 		SetBackgroundColor(backgroundColor)
 	statsView = tview.NewTextView()
 	statsView.SetText("").
+		SetDynamicColors(true).
 		SetTextColor(textAndBorderColor).
 		SetWordWrap(true).
 		SetBackgroundColor(backgroundColor).
@@ -112,6 +141,18 @@ func main() {
 		SetTitleAlign(tview.AlignLeft).
 		SetBorder(true).
 		SetTitle("hd-idle log").
+		SetBorderStyle(dim).
+		SetTitleColor(textAndBorderColor).
+		SetBackgroundColor(backgroundColor)
+	hdIdleStdoutView = tview.NewTextView()
+	hdIdleStdoutView.SetText("").
+		SetTextColor(textAndBorderColor).
+		SetWordWrap(true).
+		SetBackgroundColor(backgroundColor).
+		SetBorderPadding(0, 0, 1, 1).
+		SetTitleAlign(tview.AlignLeft).
+		SetBorder(true).
+		SetTitle("hd-idle stdout").
 		SetBorderStyle(dim).
 		SetTitleColor(textAndBorderColor).
 		SetBackgroundColor(backgroundColor)
@@ -157,11 +198,14 @@ func main() {
 	paginationColumn := tview.NewFlex().SetDirection(tview.FlexColumn).
 		AddItem(paginationView, 0, 1, false).
 		AddItem(framesView, 0, 6, false)
+	logs := tview.NewFlex().SetDirection(tview.FlexColumn).
+		AddItem(hdIdleStdoutView, 0, 1, false).
+		AddItem(hdIdleLogView, 0, 4, false)
 
 	right = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(paginationColumn, 3, 1, false).
 		AddItem(statsView, 0, 3, false).
-		AddItem(hdIdleLogView, 0, 1, false)
+		AddItem(logs, 0, 1, false)
 	right.SetBorder(true).SetBorderStyle(tcell.StyleDefault)
 	right.SetFocusFunc(func() {
 		//logsView.SetText("Focus on right flex")
@@ -190,7 +234,7 @@ func main() {
 			}
 			paginationView.SetText(fmt.Sprintf("%d of %d", frameIndex+1, len(frames)))
 			framesView.SetText(frames[frameIndex].timestamp())
-			statsView.SetText(frames[frameIndex].Diskstats)
+			statsView.SetText(frames[frameIndex].adaptedDiskstats())
 			hdIdleLogView.SetText(frames[frameIndex].adaptedLog())
 		case tcell.KeyLeft:
 			frameIndex--
@@ -199,7 +243,7 @@ func main() {
 			}
 			paginationView.SetText(fmt.Sprintf("%d of %d", frameIndex+1, len(frames)))
 			framesView.SetText(frames[frameIndex].timestamp())
-			statsView.SetText(frames[frameIndex].Diskstats)
+			statsView.SetText(frames[frameIndex].adaptedDiskstats())
 			hdIdleLogView.SetText(frames[frameIndex].adaptedLog())
 		case tcell.KeyDown:
 			line++
@@ -230,7 +274,7 @@ func main() {
 					panic(err)
 				}
 				go func() {
-					refreshAvailableSessions(sessionsList, statsView, flex)
+					refreshAvailableSessions(sessionsList, statsView)
 				}()
 				recordingView.Clear()
 			} else {
@@ -247,7 +291,7 @@ func main() {
 	})
 
 	go func() {
-		refreshAvailableSessions(sessionsList, statsView, flex)
+		refreshAvailableSessions(sessionsList, statsView)
 	}()
 	go func() {
 		updateStatus()
@@ -258,7 +302,7 @@ func main() {
 	}
 }
 
-func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextView, flex *tview.Flex) {
+func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextView) {
 	sessions, err := requestSessionsFromDaemon()
 	if err != nil {
 		logsView.SetText("Unable to load sessions. " + err.Error())
@@ -281,7 +325,7 @@ func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextVie
 	paginationView.SetText(fmt.Sprintf("1 of %d", len(sessions)))
 	framesView.SetText(frames[0].timestamp())
 	logsView.SetText(fmt.Sprintf("Loading session %s...", sessions[sessionsList.GetCurrentItem()]))
-	statsView.SetText(frames[0].Diskstats)
+	statsView.SetText(frames[0].adaptedDiskstats())
 	hdIdleLogView.SetText(frames[0].Log)
 
 	for i := range sessions {
@@ -296,9 +340,9 @@ func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextVie
 			}
 			frameIndex = 0
 			paginationView.SetText(fmt.Sprintf("1 of %d", len(frames)))
-			framesView.SetText(frames[0].timestamp())
-			statsView.SetText(frames[0].Diskstats)
-			hdIdleLogView.SetText(frames[0].Log)
+			framesView.SetText(frames[frameIndex].timestamp())
+			statsView.SetText(frames[frameIndex].adaptedDiskstats())
+			hdIdleLogView.SetText(frames[frameIndex].Log)
 			logsView.SetText(fmt.Sprintf("Session %s", sessions[i]))
 
 			app.SetFocus(right)
