@@ -48,7 +48,7 @@ func (f Frame) timestamp() string {
 func (f Frame) adaptedDiskstats() string {
 	reader := strings.NewReader(f.Diskstats)
 	scanner := bufio.NewScanner(reader)
-	i := 0
+	lineIndex := 0
 	statsLines := strings.Split(f.Diskstats, "\n")
 	for scanner.Scan() {
 		text := scanner.Text()
@@ -56,17 +56,18 @@ func (f Frame) adaptedDiskstats() string {
 		if len(cols) < 10 {
 			continue
 		}
-		coloredLine := text
-		reads := cols[5]
-		coloredLine = strings.ReplaceAll(coloredLine, reads,
-			fmt.Sprintf(`[white]%s[#999999]`, reads))
-		writes := " " + cols[9] + " "
-		coloredLine = strings.ReplaceAll(coloredLine, writes,
-			fmt.Sprintf(`[white]%s[#999999]`, writes))
 
-		statsLines[i] = coloredLine
+		statsLines[lineIndex] = fmt.Sprintf("%4s%8s", cols[0], cols[1])
+		for i := 2; i < len(cols); i++ {
+			value := cols[i]
+			switch i {
+			case 5, 9:
+				value = fmt.Sprintf("[white]%s[#999999]", value)
+			}
+			statsLines[lineIndex] += fmt.Sprintf(" %s", value)
+		}
 
-		i++
+		lineIndex++
 	}
 	return strings.Join(statsLines, "\n")
 }
