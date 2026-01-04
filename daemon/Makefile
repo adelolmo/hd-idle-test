@@ -56,3 +56,5 @@ install:
 uninstall:
 	rm -f $(DESTDIR)$(BIN_DIR)/$(TARGET)
 	rm -f $(DESTDIR)/lib/systemd/system/$(TARGET).service
+	systemctl disable --now $(TARGET)
+	systemctl daemon-reload
