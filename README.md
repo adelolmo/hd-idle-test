@@ -36,6 +36,7 @@ e.g.
 ```
 
 Start the daemon if not ard already running. e.g. `systemctl start hdtd`
+If you are not using systemd, the daemon can be started manually as root: `hdtd`
 
 Start the TUI: `hdt`
 
