@@ -20,7 +20,7 @@ $ make
 To build it, use the command:
 
 ```
-make
+$ make
 # make install
 ```
 
