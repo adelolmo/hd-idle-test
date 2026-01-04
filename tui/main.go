@@ -230,7 +230,12 @@ func main() {
 		case tcell.KeyEscape:
 			app.SetFocus(sessionsList)
 		case tcell.KeyRight:
-			frameIndex++
+			switch event.Modifiers() {
+			case tcell.ModShift:
+				frameIndex += 10
+			default:
+				frameIndex++
+			}
 			if frameIndex >= len(frames) {
 				frameIndex = len(frames) - 1
 			}
@@ -240,7 +245,12 @@ func main() {
 			hdIdleStdoutView.SetText(frames[frameIndex].Stdout)
 			hdIdleLogView.SetText(frames[frameIndex].adaptedLog())
 		case tcell.KeyLeft:
-			frameIndex--
+			switch event.Modifiers() {
+			case tcell.ModShift:
+				frameIndex -= 10
+			default:
+				frameIndex--
+			}
 			if frameIndex < 0 {
 				frameIndex = 0
 			}
@@ -249,6 +259,7 @@ func main() {
 			statsView.SetText(frames[frameIndex].adaptedDiskstats())
 			hdIdleStdoutView.SetText(frames[frameIndex].Stdout)
 			hdIdleLogView.SetText(frames[frameIndex].adaptedLog())
+
 		case tcell.KeyDown:
 			line++
 			_, _, _, height := statsView.GetRect()
@@ -263,6 +274,7 @@ func main() {
 			}
 			statsView.ScrollTo(line, 0)
 		}
+		//logsView.SetText(fmt.Sprintf("%v", event))
 		return event
 	})
 
