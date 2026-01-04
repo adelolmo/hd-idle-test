@@ -282,10 +282,8 @@ func main() {
 	})
 
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		switch event.Rune() {
-		case 'q':
-			app.Stop()
-		case 'r':
+		switch event.Key() {
+		case tcell.KeyCtrlR:
 			if recording {
 				logsView.SetText("Stop recording...")
 				_, err := sendDaemon("/record", "{\"action\":\"stop\"}")
@@ -305,7 +303,20 @@ func main() {
 				recordingView.SetText("R")
 			}
 			recording = !recording
+		default:
+			switch event.Rune() {
+			case 'q':
+				app.Stop()
+			case 'r':
+				go func() {
+					refreshAvailableSessions(sessionsList, statsView)
+				}()
+				go func() {
+					updateStatus()
+				}()
+			}
 		}
+
 		return event
 	})
 

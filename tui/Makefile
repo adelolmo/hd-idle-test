@@ -1,4 +1,5 @@
 TARGET = hdt
+BIN_DIR=/usr/bin
 PLATFORM := $(shell uname -m)
 
 ARCH :=
