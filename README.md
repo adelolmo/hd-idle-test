@@ -41,6 +41,8 @@ Start the TUI: `hdt`
 
 Now you can start the recording pressing `Ctrl + r` and run your usecase (Notice the `R` in the bottom left corner). The daemon will record the events. You can press `r` to load the recorded events right away.
 
+_Note_: Once the recording is running, you can safely quit the TUI, the daemon will continue recording in the background.
+
 ## Navigation
 
 ![TUI Screenshot](screenshot.png)
