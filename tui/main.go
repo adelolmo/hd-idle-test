@@ -233,6 +233,8 @@ func main() {
 			switch event.Modifiers() {
 			case tcell.ModShift:
 				frameIndex += 10
+			case tcell.ModCtrl:
+				frameIndex += 100
 			default:
 				frameIndex++
 			}
@@ -248,6 +250,8 @@ func main() {
 			switch event.Modifiers() {
 			case tcell.ModShift:
 				frameIndex -= 10
+			case tcell.ModCtrl:
+				frameIndex -= 100
 			default:
 				frameIndex--
 			}
@@ -274,7 +278,6 @@ func main() {
 			}
 			statsView.ScrollTo(line, 0)
 		}
-		//logsView.SetText(fmt.Sprintf("%v", event))
 		return event
 	})
 
