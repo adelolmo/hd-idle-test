@@ -46,7 +46,7 @@ If you are not using systemd, the daemon can be started manually as root: `hdtd`
 
 Start the TUI: `hdt`
 
-Now you can start the recording pressing `Ctrl + r` and run your usecase (Notice the `R` in the bottom left corner). The daemon will record the events. You can press `r` to load the recorded events right away.
+Now you can start the recording pressing `Ctrl + r` and run your usecase (Notice the `R` in the bottom left corner when recoding is active). The daemon will record the events. You can press `r` to load the recorded events right away.
 
 _Note_: Once the recording is running, you can safely quit the TUI, the daemon will continue recording in the background.
 
@@ -54,9 +54,9 @@ _Note_: Once the recording is running, you can safely quit the TUI, the daemon w
 
 ![TUI Screenshot](screenshot.png)
 
-On the left panel you can see the available recorded sessions. Navigate up and down using the arrows, and select one pressing `Enter`.
+On the left panel you can see the available recorded sessions. Navigate with `↑` and `↓` and select one by pressing `Enter`.
 
-On the right panel you can see the events of the selected session. Navigate through time using the right arrow to advance and the left arrow to go back.
-`Shift + right arrow` to go forward 10 pages and `Ctrl + right arrow` to go forward 100 pages (also valid for left arrow).
+On the right panel you can see the details for the selected session (`/proc/diskstats`, `hd-idle stdout` and `hd-idle log`). Navigate through time using `→` to advance and `←` to go back.
+`Shift + →` to go forward 10 pages and `Ctrl + →` to go forward 100 pages (also available for `←`).
 
 Press `esc` to go back to the left panel.
