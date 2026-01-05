@@ -15,7 +15,7 @@ $ make
 # make install
 ```
 
-_Note_: `make install` will fail on the last step if SystemD is not present, but the daemons can still run with:
+_Note_: `make install` will fail on the last step if SystemD is not present, but the daemon can still run with:
 
 ```
 # /usr/bin/hdtd
