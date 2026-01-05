@@ -15,6 +15,12 @@ $ make
 # make install
 ```
 
+_Note_: `make install` will fail on the last step if SystemD is not present, but the daemons can still run with:
+
+```
+# /usr/bin/hdtd
+```
+
 ## TUI
 
 To build it, use the command:
