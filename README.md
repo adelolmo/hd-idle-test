@@ -1,6 +1,6 @@
 # hd-idle test suite
 
-Tool to help testing hd-idle for real usecase scenarios.
+Tool to help testing hd-idle for real usecase scenarios
 
 _Requirements:_
 - Go: https://go.dev/doc/install
