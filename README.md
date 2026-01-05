@@ -60,3 +60,12 @@ On the right panel you can see the details for the selected session (`/proc/disk
 `Shift + →` to go forward 10 pages and `Ctrl + →` to go forward 100 pages (also available for `←`).
 
 Press `esc` to go back to the left panel.
+
+## Export a session
+
+To export a session you will need the `id` as shown in the left panel. e.g. `1767536157`
+Then you can create a tar ball. e.g.:
+
+```
+cd ~/.config/hdtd/ && tar cvfz 1767535444.tar.gz 1767535444
+```
