@@ -94,7 +94,10 @@ var (
 	hdIdleStdoutView *tview.TextView
 	frames           []Frame
 	frameIndex       int
-	line             int
+
+	statsViewLine        int
+	hdIdleLogViewLine    int
+	hdIdleStdoutViewLine int
 )
 
 func main() {
@@ -265,18 +268,13 @@ func main() {
 			hdIdleLogView.SetText(frames[frameIndex].adaptedLog())
 
 		case tcell.KeyDown:
-			line++
-			_, _, _, height := statsView.GetRect()
-			if line > statsView.GetWrappedLineCount()-height+1 {
-				line = statsView.GetWrappedLineCount() - height + 1
-			}
-			statsView.ScrollTo(line, 0)
+			scrollDown(&statsViewLine, statsView)
+			scrollDown(&hdIdleStdoutViewLine, hdIdleStdoutView)
+			scrollDown(&hdIdleLogViewLine, hdIdleLogView)
 		case tcell.KeyUp:
-			line--
-			if line < 0 {
-				line = 0
-			}
-			statsView.ScrollTo(line, 0)
+			scrollUp(&statsViewLine, statsView)
+			scrollUp(&hdIdleStdoutViewLine, hdIdleStdoutView)
+			scrollUp(&hdIdleLogViewLine, hdIdleLogView)
 		}
 		return event
 	})
@@ -330,6 +328,23 @@ func main() {
 	if err := app.SetRoot(flex, true).Run(); err != nil {
 		panic(err)
 	}
+}
+
+func scrollDown(line *int, view *tview.TextView) {
+	*line++
+	_, _, _, height := view.GetRect()
+	if *line > view.GetWrappedLineCount()-height+1 {
+		*line = view.GetWrappedLineCount() - height + 1
+	}
+	view.ScrollTo(*line, 0)
+}
+
+func scrollUp(line *int, view *tview.TextView) {
+	*line--
+	if *line < 0 {
+		*line = 0
+	}
+	view.ScrollTo(*line, 0)
 }
 
 func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextView) {
