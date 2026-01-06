@@ -56,7 +56,7 @@ _Note_: Once the recording is running, you can safely quit the TUI, the daemon w
 
 On the left panel you can see the available recorded sessions. Navigate with `↑` and `↓` and select one by pressing `Enter`.
 
-On the right panel you can see the details for the selected session (`/proc/diskstats`, `hd-idle stdout` and `hd-idle log`). Navigate through time using `→` to advance and `←` to go back.
+On the right panel you can see the details for the selected session (`/proc/diskstats`, `hd-idle stdout` and `hd-idle log`). Highlighted numbers correspond to disk reads and writes. Navigate through time using `→` to advance and `←` to go back.
 `Shift + →` to go forward 10 pages and `Ctrl + →` to go forward 100 pages (also available for `←`).
 
 Press `esc` to go back to the left panel.
