@@ -245,10 +245,7 @@ func main() {
 				frameIndex = len(frames) - 1
 			}
 			paginationView.SetText(fmt.Sprintf("%d of %d", frameIndex+1, len(frames)))
-			framesView.SetText(frames[frameIndex].timestamp())
-			statsView.SetText(frames[frameIndex].adaptedDiskstats())
-			hdIdleStdoutView.SetText(frames[frameIndex].Stdout)
-			hdIdleLogView.SetText(frames[frameIndex].adaptedLog())
+			printRightPanel(frames[frameIndex])
 		case tcell.KeyLeft:
 			switch event.Modifiers() {
 			case tcell.ModShift:
@@ -262,11 +259,7 @@ func main() {
 				frameIndex = 0
 			}
 			paginationView.SetText(fmt.Sprintf("%d of %d", frameIndex+1, len(frames)))
-			framesView.SetText(frames[frameIndex].timestamp())
-			statsView.SetText(frames[frameIndex].adaptedDiskstats())
-			hdIdleStdoutView.SetText(frames[frameIndex].Stdout)
-			hdIdleLogView.SetText(frames[frameIndex].adaptedLog())
-
+			printRightPanel(frames[frameIndex])
 		case tcell.KeyDown:
 			scrollDown(&statsViewLine, statsView)
 			scrollDown(&hdIdleStdoutViewLine, hdIdleStdoutView)
@@ -284,17 +277,17 @@ func main() {
 		case tcell.KeyCtrlR:
 			if recording {
 				logsView.SetText("Stop recording...")
-				_, err := sendDaemon("/record", "{\"action\":\"stop\"}")
+				_, err := sendDaemon("/record", `{"action":"stop"}`)
 				if err != nil {
 					panic(err)
 				}
 				go func() {
-					refreshAvailableSessions(sessionsList, statsView)
+					refreshAvailableSessions(sessionsList)
 				}()
 				recordingView.Clear()
 			} else {
 				logsView.SetText("Start recording...")
-				_, err := sendDaemon("/record", "{\"action\":\"start\"}")
+				_, err := sendDaemon("/record", `{"action":"start"}`)
 				if err != nil {
 					panic(err)
 				}
@@ -307,7 +300,7 @@ func main() {
 				app.Stop()
 			case 'r':
 				go func() {
-					refreshAvailableSessions(sessionsList, statsView)
+					refreshAvailableSessions(sessionsList)
 				}()
 				go func() {
 					updateStatus()
@@ -319,7 +312,7 @@ func main() {
 	})
 
 	go func() {
-		refreshAvailableSessions(sessionsList, statsView)
+		refreshAvailableSessions(sessionsList)
 	}()
 	go func() {
 		updateStatus()
@@ -347,7 +340,7 @@ func scrollUp(line *int, view *tview.TextView) {
 	view.ScrollTo(*line, 0)
 }
 
-func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextView) {
+func refreshAvailableSessions(sessionsList *tview.List) {
 	sessions, err := requestSessionsFromDaemon()
 	if err != nil {
 		logsView.SetText("Unable to load sessions. " + err.Error())
@@ -357,45 +350,60 @@ func refreshAvailableSessions(sessionsList *tview.List, statsView *tview.TextVie
 	logsView.SetText("Loading sessions...")
 	if len(sessions) == 0 {
 		logsView.SetText("No sessions available.")
-		statsView.Clear()
+		clearRightPanel()
 		return
 	}
 
+	logsView.SetText(fmt.Sprintf("Loading session %s...", sessions[sessionsList.GetCurrentItem()]))
 	frames, err = requestSessionFromDaemon(sessions[sessionsList.GetCurrentItem()])
 	if err != nil {
+		clearRightPanel()
 		logsView.SetText("Error loading session. " + err.Error())
-		statsView.Clear()
 		return
 	}
 	paginationView.SetText(fmt.Sprintf("1 of %d", len(sessions)))
-	framesView.SetText(frames[0].timestamp())
-	logsView.SetText(fmt.Sprintf("Loading session %s...", sessions[sessionsList.GetCurrentItem()]))
-	statsView.SetText(frames[0].adaptedDiskstats())
-	hdIdleStdoutView.SetText(frames[0].Stdout)
-	hdIdleLogView.SetText(frames[0].Log)
+	printRightPanel(frames[0])
+	logsView.SetText(fmt.Sprintf("Session %s", sessions[sessionsList.GetCurrentItem()]))
 
 	for i := range sessions {
 		runes := []rune(strconv.Itoa(i + 1))
 		sessionsList.AddItem(sessions[i], formatFromUnixTime(sessions[i]), runes[0], func() {
-			logsView.SetText(fmt.Sprintf("Loading session %s...", sessions[i]))
+
+			go func() {
+				logsView.SetText(fmt.Sprintf("Loading session %s...", sessions[i]))
+				clearRightPanel()
+				paginationView.SetText("0 of 0")
+			}()
+
 			frames, err = requestSessionFromDaemon(sessions[sessionsList.GetCurrentItem()])
 			if err != nil {
+				clearRightPanel()
 				logsView.SetText("Error loading session. " + err.Error())
-				statsView.Clear()
 				return
 			}
 			frameIndex = 0
 			paginationView.SetText(fmt.Sprintf("1 of %d", len(frames)))
-			framesView.SetText(frames[frameIndex].timestamp())
-			statsView.SetText(frames[frameIndex].adaptedDiskstats())
-			hdIdleStdoutView.SetText(frames[frameIndex].Stdout)
-			hdIdleLogView.SetText(frames[frameIndex].Log)
+			printRightPanel(frames[frameIndex])
 			logsView.SetText(fmt.Sprintf("Session %s", sessions[i]))
 
 			app.SetFocus(right)
 		})
 	}
 	app.Draw()
+}
+
+func printRightPanel(frame Frame) {
+	framesView.SetText(frame.timestamp())
+	statsView.SetText(frame.adaptedDiskstats())
+	hdIdleStdoutView.SetText(frame.Stdout)
+	hdIdleLogView.SetText(frame.adaptedLog())
+}
+
+func clearRightPanel() {
+	framesView.Clear()
+	statsView.Clear()
+	hdIdleStdoutView.Clear()
+	hdIdleLogView.Clear()
 }
 
 func updateStatus() {
