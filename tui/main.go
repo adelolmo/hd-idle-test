@@ -361,7 +361,7 @@ func refreshAvailableSessions(sessionsList *tview.List) {
 		logsView.SetText("Error loading session. " + err.Error())
 		return
 	}
-	paginationView.SetText(fmt.Sprintf("1 of %d", len(sessions)))
+	paginationView.SetText(fmt.Sprintf("1 of %d", len(frames)))
 	printRightPanel(frames[0])
 	logsView.SetText(fmt.Sprintf("Session %s", sessions[sessionsList.GetCurrentItem()]))
 
