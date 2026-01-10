@@ -124,65 +124,11 @@ func main() {
 		SetBorder(true).
 		SetBorderStyle(dim).
 		SetBackgroundColor(backgroundColor)
-	statsView = tview.NewTextView()
-	statsView.SetText("").
-		SetDynamicColors(true).
-		SetTextColor(textAndBorderColor).
-		SetWordWrap(true).
-		SetBackgroundColor(backgroundColor).
-		SetBorderPadding(0, 0, 1, 1).
-		SetTitleAlign(tview.AlignLeft).
-		SetBorder(true).
-		SetTitle("/proc/diskstats").
-		SetBorderStyle(dim).
-		SetTitleColor(textAndBorderColor).
-		SetBackgroundColor(backgroundColor)
-	hdIdleLogView = tview.NewTextView()
-	hdIdleLogView.SetText("").
-		SetTextColor(textAndBorderColor).
-		SetWordWrap(true).
-		SetBackgroundColor(backgroundColor).
-		SetBorderPadding(0, 0, 1, 1).
-		SetTitleAlign(tview.AlignLeft).
-		SetBorder(true).
-		SetTitle("hd-idle log").
-		SetBorderStyle(dim).
-		SetTitleColor(textAndBorderColor).
-		SetBackgroundColor(backgroundColor)
-	hdIdleStdoutView = tview.NewTextView()
-	hdIdleStdoutView.SetText("").
-		SetTextColor(textAndBorderColor).
-		SetWordWrap(true).
-		SetBackgroundColor(backgroundColor).
-		SetBorderPadding(0, 0, 1, 1).
-		SetTitleAlign(tview.AlignLeft).
-		SetBorder(true).
-		SetTitle("hd-idle stdout").
-		SetBorderStyle(dim).
-		SetTitleColor(textAndBorderColor).
-		SetBackgroundColor(backgroundColor)
-	logsView = tview.NewTextView()
-	logsView.SetText("").
-		SetTextColor(textAndBorderColor).
-		SetWordWrap(true).
-		SetBackgroundColor(backgroundColor).
-		SetBorderPadding(0, 0, 1, 1).
-		SetTitleAlign(tview.AlignLeft).
-		SetBorder(true).
-		SetBorderColor(textAndBorderColor).
-		SetTitleColor(textAndBorderColor).
-		SetBackgroundColor(backgroundColor)
-	recordingView = tview.NewTextView()
-	recordingView.SetText("").
-		SetTextColor(textAndBorderColor).
-		SetWordWrap(true).
-		SetBackgroundColor(backgroundColor).
-		SetBorderPadding(0, 0, 1, 1).
-		SetTitleAlign(tview.AlignLeft).
-		SetBorder(true).
-		SetBorderColor(textAndBorderColor).
-		SetTitleColor(textAndBorderColor).
-		SetBackgroundColor(backgroundColor)
+	statsView = newDataTextView("/proc/diskstats")
+	hdIdleLogView = newDataTextView("hd-idle log")
+	hdIdleStdoutView = newDataTextView("hd-idle stdout")
+	logsView = newDataTextView("")
+	recordingView = newDataTextView("")
 
 	sessionsList := tview.NewList()
 	sessionsList.SetBackgroundColor(backgroundColor).
@@ -321,6 +267,24 @@ func main() {
 	if err := app.SetRoot(flex, true).Run(); err != nil {
 		panic(err)
 	}
+}
+
+func newDataTextView(title string) *tview.TextView {
+	view := tview.NewTextView().
+		SetText("").
+		SetDynamicColors(true).
+		SetTextColor(textAndBorderColor).
+		SetWordWrap(true)
+	view.
+		SetBackgroundColor(backgroundColor).
+		SetBorderPadding(0, 0, 1, 1).
+		SetTitleAlign(tview.AlignLeft).
+		SetBorder(true).
+		SetBorderStyle(tcell.StyleDefault.Dim(true)).
+		SetTitleColor(textAndBorderColor).
+		SetBackgroundColor(backgroundColor).
+		SetTitle(title)
+	return view
 }
 
 func scrollDown(line *int, view *tview.TextView) {
