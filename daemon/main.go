@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -99,25 +100,37 @@ func main() {
 			if !e.IsDir() {
 				continue
 			}
-			diskStatsBytes, err := os.ReadFile(filepath.Join(sessionDir, e.Name(), "diskstats"))
-			if err != nil {
-				log.Println(err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			logBytes, err := os.ReadFile(filepath.Join(sessionDir, e.Name(), "log"))
-			if err != nil {
-				log.Println(err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			stdoutBytes, err := os.ReadFile(filepath.Join(sessionDir, e.Name(), "stdout"))
-			if err != nil {
-				log.Println(err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-
+			wg := sync.WaitGroup{}
+			wg.Add(3)
+			var diskStatsBytes, logBytes, stdoutBytes []byte
+			go func() {
+				defer wg.Done()
+				diskStatsBytes, err = os.ReadFile(filepath.Join(sessionDir, e.Name(), "diskstats"))
+				if err != nil {
+					log.Println(err)
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+			}()
+			go func() {
+				defer wg.Done()
+				logBytes, err = os.ReadFile(filepath.Join(sessionDir, e.Name(), "log"))
+				if err != nil {
+					log.Println(err)
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+			}()
+			go func() {
+				defer wg.Done()
+				stdoutBytes, err = os.ReadFile(filepath.Join(sessionDir, e.Name(), "stdout"))
+				if err != nil {
+					log.Println(err)
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+			}()
+			wg.Wait()
 			frames = append(frames, Frame{
 				Id:        e.Name(),
 				Diskstats: string(diskStatsBytes),
