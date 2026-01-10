@@ -354,28 +354,26 @@ func refreshAvailableSessions(sessionsList *tview.List) {
 		return
 	}
 
-	logsView.SetText(fmt.Sprintf("Loading session %s...", sessions[sessionsList.GetCurrentItem()]))
-	frames, err = requestSessionFromDaemon(sessions[sessionsList.GetCurrentItem()])
-	if err != nil {
-		clearRightPanel()
-		logsView.SetText("Error loading session. " + err.Error())
-		return
-	}
-	paginationView.SetText(fmt.Sprintf("1 of %d", len(frames)))
-	printRightPanel(frames[0])
-	logsView.SetText(fmt.Sprintf("Session %s", sessions[sessionsList.GetCurrentItem()]))
+	app.QueueUpdateDraw(func() {
+		for i := range sessions {
+			runes := []rune(strconv.Itoa(i + 1))
+			sessionsList.AddItem(sessions[i], formatFromUnixTime(sessions[i]), runes[0], nil)
+		}
+	})
 
-	for i := range sessions {
-		runes := []rune(strconv.Itoa(i + 1))
-		sessionsList.AddItem(sessions[i], formatFromUnixTime(sessions[i]), runes[0], func() {
+	logsView.Clear()
 
-			go func() {
-				logsView.SetText(fmt.Sprintf("Loading session %s...", sessions[i]))
-				clearRightPanel()
-				paginationView.SetText("0 of 0")
-			}()
+	onSelect := func(i int, mainText, secondaryText string, shortcut rune) {
 
-			frames, err = requestSessionFromDaemon(sessions[sessionsList.GetCurrentItem()])
+		go func() {
+			logsView.SetText(fmt.Sprintf("Loading session %s...", mainText))
+			clearRightPanel()
+			app.SetFocus(right)
+			app.Draw()
+		}()
+
+		go func() {
+			frames, err = requestSessionFromDaemon(sessions[i])
 			if err != nil {
 				clearRightPanel()
 				logsView.SetText("Error loading session. " + err.Error())
@@ -383,13 +381,13 @@ func refreshAvailableSessions(sessionsList *tview.List) {
 			}
 			frameIndex = 0
 			paginationView.SetText(fmt.Sprintf("1 of %d", len(frames)))
-			printRightPanel(frames[frameIndex])
-			logsView.SetText(fmt.Sprintf("Session %s", sessions[i]))
+			printRightPanel(frames[0])
+			logsView.SetText(fmt.Sprintf("Session %s", mainText))
+			app.Draw()
+		}()
 
-			app.SetFocus(right)
-		})
 	}
-	app.Draw()
+	sessionsList.SetSelectedFunc(onSelect)
 }
 
 func printRightPanel(frame Frame) {
@@ -400,6 +398,7 @@ func printRightPanel(frame Frame) {
 }
 
 func clearRightPanel() {
+	paginationView.SetText("0 of 0")
 	framesView.Clear()
 	statsView.Clear()
 	hdIdleStdoutView.Clear()
