@@ -24,8 +24,8 @@ const (
 )
 
 var (
-	hdidleLogLength    = 0
 	hdidleStdoutLength = 0
+	hdidleLogLength    = 0
 )
 
 func main() {
@@ -193,6 +193,7 @@ func main() {
 		}
 
 		if request.Action == "start" {
+			hdidleStdoutLength = 0
 			hdidleLogLength = 0
 			sessionDir := filepath.Join(dataDir, fmt.Sprintf("%d", time.Now().Unix()))
 			_, err = scheduler.Add(&tasks.Task{
