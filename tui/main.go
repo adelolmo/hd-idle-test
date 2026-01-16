@@ -18,6 +18,19 @@ import (
 )
 
 const (
+	listHelp = "[white:gray]Navigation [↑↓][-:-] " +
+		"[white:gray]Select [⮠][-:-] " +
+		"[white:gray]Reload [r[][-:-] " +
+		"[white:gray]Rec start/stop [^r][-:-] " +
+		"[white:gray]Quit [q[][-:-]"
+	frameHelp = "[white:gray]Next [→][⇧→][^→][-:-] " +
+		"[white:gray]Previous [←][⇧←][^←][-:-] " +
+		"[white:gray]Scroll [↑↓][-:-] " +
+		"[white:gray]Back [esc[][-:-] " +
+		"[white:gray]Reload [r[][-:-] " +
+		"[white:gray]Rec start/stop [^r][-:-] " +
+		"[white:gray]Quit [q[][-:-]"
+
 	textAndBorderColor = tcell.ColorDarkGrey
 	backgroundColor    = tcell.ColorDefault
 	colorBlack         = tcell.Color16
@@ -92,8 +105,10 @@ var (
 	statsView        *tview.TextView
 	hdIdleLogView    *tview.TextView
 	hdIdleStdoutView *tview.TextView
-	frames           []Frame
-	frameIndex       int
+	helpView         *tview.TextView
+
+	frames     []Frame
+	frameIndex int
 
 	statsViewLine        int
 	hdIdleLogViewLine    int
@@ -153,6 +168,9 @@ func main() {
 		AddItem(hdIdleStdoutView, 0, 1, false).
 		AddItem(hdIdleLogView, 0, 4, false)
 
+	helpView = tview.NewTextView().
+		SetDynamicColors(true)
+	helpView.SetBackgroundColor(backgroundColor)
 	right = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(paginationColumn, 3, 1, false).
 		AddItem(statsView, 0, 3, false).
@@ -172,11 +190,13 @@ func main() {
 		AddItem(logsView, 0, 1, false)
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(topRow, 0, 1, true).
-		AddItem(bottomRow, 3, 1, false)
+		AddItem(bottomRow, 3, 1, false).
+		AddItem(helpView, 1, 1, false)
 
 	right.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
 		case tcell.KeyEscape:
+			helpView.SetText(listHelp)
 			app.SetFocus(sessionsList)
 		case tcell.KeyRight:
 			switch event.Modifiers() {
@@ -311,6 +331,7 @@ func refreshAvailableSessions(sessionsList *tview.List) {
 		return
 	}
 	sessionsList.Clear()
+	helpView.SetText(listHelp)
 	logsView.SetText("Loading sessions...")
 	if len(sessions) == 0 {
 		logsView.SetText("No sessions available.")
@@ -330,6 +351,7 @@ func refreshAvailableSessions(sessionsList *tview.List) {
 	onSelect := func(i int, mainText, secondaryText string, shortcut rune) {
 
 		go func() {
+			helpView.SetText(frameHelp)
 			logsView.SetText(fmt.Sprintf("Loading session %s...", mainText))
 			clearRightPanel()
 			app.SetFocus(right)
@@ -430,6 +452,17 @@ func requestSessionFromDaemon(id string) ([]Frame, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == 500 {
+		type Response struct {
+			Error string `json:"error"`
+		}
+		var response Response
+		if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+			return nil, fmt.Errorf("unable to parse response body. " + err.Error())
+		}
+		return nil, fmt.Errorf("server error: %s", response.Error)
+	}
 
 	type Response struct {
 		Frames []Frame `json:"frames"`
