@@ -182,7 +182,7 @@ func main() {
 
 	topRow := tview.NewFlex().
 		AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
-			AddItem(sessionsList, 23, 1, true).
+			AddItem(sessionsList, 19, 1, true).
 			AddItem(right, 0, 1, false),
 			0, 1, true)
 	bottomRow := tview.NewFlex().SetDirection(tview.FlexColumn).
@@ -341,8 +341,7 @@ func refreshAvailableSessions(sessionsList *tview.List) {
 
 	app.QueueUpdateDraw(func() {
 		for i := range sessions {
-			runes := []rune(strconv.Itoa(i + 1))
-			sessionsList.AddItem(sessions[i], formatFromUnixTime(sessions[i]), runes[0], nil)
+			sessionsList.AddItem(sessions[i], formatFromUnixTime(sessions[i]), 0, nil)
 		}
 	})
 
