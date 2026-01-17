@@ -11,19 +11,19 @@ curl -X POST -H 'Content-Type: application/json' \
   --unix-socket /tmp/hdtd.sock \
   "http://unix/record"
 
-sleep 30
+sleep 11
 
 # write on
 date +"%Y-%m-%d %H:%M" > "/mnt/one/$(date +"%Y%m%d-%H%M").txt"
 
-# sleep 10m 5s
-sleep 605
+# sleep 12m
+sleep 720
 
 # assert sdb is spun down
 printf '* %s \033[0;31mFail\033[0m\r\n' "$NAME"
 printf '* %s \033[0;32mOK\033[0m\r\n' "$NAME"
 
-sleep 30
+sleep 11
 
 # stop recording
 curl -X POST -H 'Content-Type: application/json' \
