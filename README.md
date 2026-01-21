@@ -38,7 +38,7 @@ Start hd-idle in the terminal with the argument `-l /var/log/hd-idle.log` and re
 
 e.g.
 ```
-# nohup /usr/sbin/hd-idle -l /var/log/hd-idle.log > /tmp/hd-idle.out
+# touch /var/log/hd-idle.log && nohup /usr/sbin/hd-idle -l /var/log/hd-idle.log > /tmp/hd-idle.out 2>&1 &
 ```
 
 Start the daemon if not already running. e.g. `systemctl start hdtd`
@@ -63,7 +63,7 @@ Press `esc` to go back to the left panel.
 
 ## Export a session
 
-To export a session you will need the `id` as shown in the left panel. e.g. `1767536157`
+To export a session, you will need the `id` as shown in the left panel. e.g. `1767536157`
 Then you can create a tar ball. e.g.:
 
 ```
