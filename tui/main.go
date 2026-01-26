@@ -265,22 +265,16 @@ func main() {
 			case 'q':
 				app.Stop()
 			case 'r':
-				go func() {
-					refreshAvailableSessions(sessionsList)
-				}()
-				go func() {
-					updateStatus()
-				}()
+				go refreshAvailableSessions(sessionsList)
 			}
 		}
 
 		return event
 	})
 
+	go refreshAvailableSessions(sessionsList)
 	go func() {
-		refreshAvailableSessions(sessionsList)
-	}()
-	go func() {
+		updateRecording()
 		updateStatus()
 	}()
 
@@ -394,6 +388,7 @@ func updateStatus() {
 	client, err := openClient()
 	if err != nil {
 		logsView.SetText("Error getting status. " + err.Error())
+		return
 	}
 
 	resp, err := client.Get("http://unix/status")
@@ -407,7 +402,7 @@ func updateStatus() {
 		DiskMapping map[string]string `json:"disk_mapping"`
 	}
 	var response Response
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	if err = json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		logsView.SetText("Error getting status. " + err.Error())
 		return
 	}
@@ -417,6 +412,38 @@ func updateStatus() {
 	if response.Recording {
 		recording = true
 		recordingView.SetText("R")
+	}
+}
+
+func updateRecording() {
+	for {
+		client, err := openClient()
+		if err != nil {
+			logsView.SetText("Error getting recording. " + err.Error())
+			continue
+		}
+
+		resp, err := client.Get("http://unix/record")
+		if err != nil {
+			logsView.SetText("Error getting record. " + err.Error())
+			return
+		}
+
+		type Response struct {
+			Recording bool `json:"recording"`
+		}
+		var response Response
+		if err = json.NewDecoder(resp.Body).Decode(&response); err != nil {
+			logsView.SetText("Error getting status. " + err.Error())
+			return
+		}
+
+		recordingView.Clear()
+		if response.Recording {
+			recording = true
+			recordingView.SetText("R")
+		}
+		app.Draw()
 	}
 }
 

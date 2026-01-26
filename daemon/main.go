@@ -23,6 +23,7 @@ const (
 )
 
 var (
+	recording          = make(chan bool, 1)
 	hdidleStdoutLength = 0
 	hdidleLogLength    = 0
 )
@@ -158,14 +159,25 @@ func main() {
 			DiskMapping map[string]string `json:"disk_mapping"`
 		}
 
-		recording := false
+		rec := false
 		if taskLen > 0 {
-			recording = true
+			rec = true
 		}
 		c.JSON(http.StatusOK,
-			Response{Recording: recording,
-				DiskMapping: mapping})
+			Response{Recording: rec,
+				DiskMapping: mapping,
+			})
+	})
 
+	router.GET("/record", func(c *gin.Context) {
+		type Response struct {
+			Recording bool `json:"recording"`
+		}
+
+		select {
+		case record := <-recording:
+			c.JSON(http.StatusOK, Response{Recording: record})
+		}
 	})
 
 	router.POST("/record", func(c *gin.Context) {
@@ -180,6 +192,7 @@ func main() {
 		}
 
 		if request.Action == "start" {
+			recording <- true
 			hdidleStdoutLength = 0
 			hdidleLogLength = 0
 			sessionDir := filepath.Join(dataDir, fmt.Sprintf("%d", time.Now().Unix()))
@@ -196,6 +209,7 @@ func main() {
 			log.Printf("Starting recording...")
 		}
 		if request.Action == "stop" {
+			recording <- false
 			scheduler.Stop()
 			log.Printf("Stopping recording...")
 		}
@@ -219,7 +233,6 @@ func main() {
 }
 
 func collectStats(dataDir, sessionDir string) error {
-	//fmt.Println("Working...")
 	frameDir := filepath.Join(sessionDir, fmt.Sprintf("%d", time.Now().Unix()))
 	err := os.MkdirAll(frameDir, 0750)
 	if err != nil {
