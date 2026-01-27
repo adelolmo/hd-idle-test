@@ -20,8 +20,12 @@ date +"%Y-%m-%d %H:%M" > "/mnt/one/$(date +"%Y%m%d-%H%M").txt"
 sleep 720
 
 # assert sdb is spun down
-printf '* %s \033[0;31mFail\033[0m\r\n' "$NAME"
-printf '* %s \033[0;32mOK\033[0m\r\n' "$NAME"
+up=$(curl -sX GET --unix-socket /tmp/spd.sock "http://unix/devices/sdb" |jq .up)
+if [ $up = "true" ]; then
+  printf '* %s \033[0;31mFail\033[0m\r\n' "$NAME"
+else
+  printf '* %s \033[0;32mOK\033[0m\r\n' "$NAME"
+fi
 
 sleep 11
 
