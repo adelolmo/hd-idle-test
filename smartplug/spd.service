@@ -1,0 +1,14 @@
+[Unit]
+Description=API to connect with smart plugs
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/spd
+SyslogIdentifier=spd
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
