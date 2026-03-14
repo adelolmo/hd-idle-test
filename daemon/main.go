@@ -182,6 +182,7 @@ func main() {
 
 	router.POST("/record", func(c *gin.Context) {
 		type Request struct {
+			Name   string `json:"name"`
 			Action string `json:"action"`
 		}
 		var request Request
@@ -196,6 +197,9 @@ func main() {
 			hdidleStdoutLength = 0
 			hdidleLogLength = 0
 			sessionDir := filepath.Join(dataDir, fmt.Sprintf("%d", time.Now().Unix()))
+			if len(request.Name) > 0 {
+				sessionDir = filepath.Join(dataDir, fmt.Sprintf("%s;%d", request.Name, time.Now().Unix()))
+			}
 			_, err = scheduler.Add(&tasks.Task{
 				Interval:          5 * time.Second,
 				RunSingleInstance: true,
@@ -206,12 +210,12 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
-			log.Printf("Starting recording...")
+			log.Printf("Starting recording '%s'...", request.Name)
 		}
 		if request.Action == "stop" {
 			recording <- false
 			scheduler.Stop()
-			log.Printf("Stopping recording...")
+			log.Printf("Stopping recording '%s'...", request.Name)
 		}
 
 		c.Status(http.StatusOK)

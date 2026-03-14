@@ -335,7 +335,14 @@ func refreshAvailableSessions(sessionsList *tview.List) {
 
 	app.QueueUpdateDraw(func() {
 		for i := range sessions {
-			sessionsList.AddItem(sessions[i], formatFromUnixTime(sessions[i]), 0, nil)
+			mainText := sessions[i]
+			timestamp := sessions[i]
+			if strings.Contains(sessions[i], ";") {
+				mainText = strings.Split(sessions[i], ";")[0]
+				timestamp = strings.Split(sessions[i], ";")[1]
+			}
+			secondaryText := formatFromUnixTime(timestamp)
+			sessionsList.AddItem(mainText, secondaryText, 0, nil)
 		}
 	})
 

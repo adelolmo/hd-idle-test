@@ -31,7 +31,7 @@ ifeq ($(GOARCH),)
 endif
 
 $(TARGET):
-	GOOS=linux GOARCH=$(GOARCH) GO111MODULE=on go build -o $(TARGET)
+	GO111MODULE=on GOOS=linux GOARCH=$(GOARCH) GO111MODULE=on go build -o $(TARGET)
 
 .PHONY: tidy
 tidy:
