@@ -21,6 +21,7 @@ const (
 	listHelp = "[white:gray]Navigation [↑↓][-:-] " +
 		"[white:gray]Select [⮠][-:-] " +
 		"[white:gray]Reload [r[][-:-] " +
+		"[white:gray]Filter [f[][-:-] " +
 		"[white:gray]Rec start/stop [^r][-:-] " +
 		"[white:gray]Quit [q[][-:-]"
 	frameHelp = "[white:gray]Next [→][⇧→][^→][-:-] " +
@@ -28,6 +29,7 @@ const (
 		"[white:gray]Scroll [↑↓][-:-] " +
 		"[white:gray]Back [esc[][-:-] " +
 		"[white:gray]Reload [r[][-:-] " +
+		"[white:gray]Filter [f[][-:-] " +
 		"[white:gray]Rec start/stop [^r][-:-] " +
 		"[white:gray]Quit [q[][-:-]"
 
@@ -59,11 +61,10 @@ func (f Frame) timestamp() string {
 	return formatFromUnixTime(f.Id)
 }
 
-func (f Frame) adaptedDiskstats() string {
+func (f Frame) adaptedDiskstats(filter string) string {
 	reader := strings.NewReader(f.Diskstats)
 	scanner := bufio.NewScanner(reader)
-	lineIndex := 0
-	statsLines := strings.Split(f.Diskstats, "\n")
+	lines := []string{}
 	for scanner.Scan() {
 		text := scanner.Text()
 		cols := strings.Fields(text)
@@ -71,19 +72,23 @@ func (f Frame) adaptedDiskstats() string {
 			continue
 		}
 
-		statsLines[lineIndex] = fmt.Sprintf("%4s%8s", cols[0], cols[1])
+		deviceName := cols[2]
+		if filter != "" && !strings.Contains(deviceName, filter) {
+			continue
+		}
+
+		line := fmt.Sprintf("%4s%8s", cols[0], cols[1])
 		for i := 2; i < len(cols); i++ {
 			value := cols[i]
 			switch i {
 			case 5, 9:
 				value = fmt.Sprintf("[white]%s[#999999]", value)
 			}
-			statsLines[lineIndex] += fmt.Sprintf(" %s", value)
+			line += fmt.Sprintf(" %s", value)
 		}
-
-		lineIndex++
+		lines = append(lines, line)
 	}
-	return strings.Join(statsLines, "\n")
+	return strings.Join(lines, "\n")
 }
 
 func (f Frame) adaptedLog() string {
@@ -108,6 +113,7 @@ var (
 	powerView        *tview.TextView
 	hdIdleStdoutView *tview.TextView
 	helpView         *tview.TextView
+	flex             *tview.Flex
 
 	frames     []Frame
 	frameIndex int
@@ -115,6 +121,12 @@ var (
 	statsViewLine        int
 	hdIdleLogViewLine    int
 	hdIdleStdoutViewLine int
+
+	diskFilter    string
+	filterModal   *tview.Modal
+	filterInput   *tview.InputField
+	filterForm    *tview.Form
+	filterWrapper *tview.Flex
 )
 
 func main() {
@@ -164,6 +176,52 @@ func main() {
 
 	app = tview.NewApplication()
 
+	filterForm = tview.NewForm()
+	filterForm.AddInputField("Filter device:", "", 20, nil, func(text string) {
+		diskFilter = text
+	})
+	filterForm.AddButton("Apply", func() {
+		applyFilter()
+	})
+	filterForm.AddButton("Clear", func() {
+		diskFilter = ""
+		if frameIndex < len(frames) {
+			statsView.SetText(frames[frameIndex].adaptedDiskstats(diskFilter))
+		}
+		statsView.SetTitle("/proc/diskstats")
+		app.SetRoot(flex, true)
+	})
+	filterForm.AddButton("Cancel", func() {
+		app.SetRoot(flex, true)
+	})
+	filterForm.SetBorder(true).
+		SetTitle("Filter Devices").
+		SetBackgroundColor(backgroundColor)
+
+	filterModal = tview.NewModal()
+
+	filterWrapper = tview.NewFlex().SetDirection(tview.FlexRow)
+	filterWrapper.AddItem(tview.NewBox(), 0, 1, false)
+	filterWrapper.AddItem(filterForm, 10, 1, false)
+	filterWrapper.AddItem(tview.NewBox(), 0, 1, false)
+	filterWrapper.SetBorder(false)
+
+	filterModal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+		switch buttonLabel {
+		case "Apply":
+			applyFilter()
+		case "Clear":
+			diskFilter = ""
+			if frameIndex < len(frames) {
+				statsView.SetText(frames[frameIndex].adaptedDiskstats(diskFilter))
+			}
+			statsView.SetTitle("/proc/diskstats")
+			app.SetRoot(flex, true)
+		case "Cancel":
+			app.SetRoot(flex, true)
+		}
+	})
+
 	paginationColumn := tview.NewFlex().SetDirection(tview.FlexColumn).
 		AddItem(paginationView, 0, 1, false).
 		AddItem(framesView, 0, 6, false)
@@ -192,7 +250,7 @@ func main() {
 	bottomRow := tview.NewFlex().SetDirection(tview.FlexColumn).
 		AddItem(recordingView, 5, 1, false).
 		AddItem(logsView, 0, 1, false)
-	flex := tview.NewFlex().SetDirection(tview.FlexRow).
+	flex = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(topRow, 0, 1, true).
 		AddItem(bottomRow, 3, 1, false).
 		AddItem(helpView, 1, 1, false)
@@ -270,6 +328,8 @@ func main() {
 				app.Stop()
 			case 'r':
 				go refreshAvailableSessions(sessionsList)
+			case 'f':
+				showFilterModal()
 			}
 		}
 
@@ -382,7 +442,7 @@ func refreshAvailableSessions(sessionsList *tview.List) {
 
 func printRightPanel(frame Frame) {
 	framesView.SetText(frame.timestamp())
-	statsView.SetText(frame.adaptedDiskstats())
+	statsView.SetText(frame.adaptedDiskstats(diskFilter))
 	powerView.SetText(frame.Power)
 	hdIdleStdoutView.SetText(frame.Stdout)
 	hdIdleLogView.SetText(frame.adaptedLog())
@@ -552,4 +612,23 @@ func openClient() (http.Client, error) {
 func formatFromUnixTime(date string) string {
 	unixTimestamp, _ := strconv.ParseInt(date, 10, 64)
 	return time.Unix(unixTimestamp, 0).Format("02 Jan 15:04:05")
+}
+
+func showFilterModal() {
+	app.SetRoot(filterWrapper, true)
+	app.SetFocus(filterForm)
+}
+
+func applyFilter() {
+	inputField := filterForm.GetFormItem(0).(*tview.InputField)
+	diskFilter = inputField.GetText()
+	if frameIndex < len(frames) {
+		statsView.SetText(frames[frameIndex].adaptedDiskstats(diskFilter))
+	}
+	if diskFilter != "" {
+		statsView.SetTitle("/proc/diskstats (filter: " + diskFilter + ")")
+	} else {
+		statsView.SetTitle("/proc/diskstats")
+	}
+	app.SetRoot(flex, true)
 }
