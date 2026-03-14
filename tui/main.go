@@ -52,6 +52,7 @@ type Frame struct {
 	Diskstats string `json:"diskstats"`
 	Log       string `json:"log"`
 	Stdout    string `json:"stdout"`
+	Power     string `json:"power"`
 }
 
 func (f Frame) timestamp() string {
@@ -104,6 +105,7 @@ var (
 	right            *tview.Flex
 	statsView        *tview.TextView
 	hdIdleLogView    *tview.TextView
+	powerView        *tview.TextView
 	hdIdleStdoutView *tview.TextView
 	helpView         *tview.TextView
 
@@ -141,6 +143,7 @@ func main() {
 		SetBackgroundColor(backgroundColor)
 	statsView = newDataTextView("/proc/diskstats")
 	hdIdleLogView = newDataTextView("hd-idle log")
+	powerView = newDataTextView("device power")
 	hdIdleStdoutView = newDataTextView("hd-idle stdout")
 	logsView = newDataTextView("")
 	recordingView = newDataTextView("")
@@ -165,6 +168,7 @@ func main() {
 		AddItem(paginationView, 0, 1, false).
 		AddItem(framesView, 0, 6, false)
 	logs := tview.NewFlex().SetDirection(tview.FlexColumn).
+		AddItem(powerView, 0, 1, false).
 		AddItem(hdIdleStdoutView, 0, 1, false).
 		AddItem(hdIdleLogView, 0, 4, false)
 
@@ -379,6 +383,7 @@ func refreshAvailableSessions(sessionsList *tview.List) {
 func printRightPanel(frame Frame) {
 	framesView.SetText(frame.timestamp())
 	statsView.SetText(frame.adaptedDiskstats())
+	powerView.SetText(frame.Power)
 	hdIdleStdoutView.SetText(frame.Stdout)
 	hdIdleLogView.SetText(frame.adaptedLog())
 }
@@ -387,6 +392,7 @@ func clearRightPanel() {
 	paginationView.SetText("0 of 0")
 	framesView.Clear()
 	statsView.Clear()
+	powerView.Clear()
 	hdIdleStdoutView.Clear()
 	hdIdleLogView.Clear()
 }
@@ -502,7 +508,7 @@ func requestSessionFromDaemon(id string) ([]Frame, error) {
 	}
 
 	var response Response
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	if err = json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, fmt.Errorf("unable to parse response body. " + err.Error())
 	}
 	return response.Frames, nil

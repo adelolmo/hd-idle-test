@@ -18,12 +18,27 @@ const (
 )
 
 var mapping = map[string]string{
-	"sda": plugOneBaseUrl,
-	"sdb": plugTwoBaseUrl,
+	"sda": plugOneBaseUrl, // /mnt/one
+	"sdb": plugTwoBaseUrl, // /mnt/two
 }
 
 func main() {
 	router := gin.Default()
+
+	router.GET("/devices", func(c *gin.Context) {
+		var devices []Device
+		for deviceId := range mapping {
+			status, err := smartPlugStatus(mapping[deviceId])
+			if err != nil {
+				log.Println(err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			devices = append(devices, Device{Id: deviceId, Up: status.Up})
+		}
+
+		c.JSON(http.StatusOK, DevicesResponse{devices})
+	})
 
 	router.GET("/devices/:id", func(c *gin.Context) {
 		deviceId := c.Param("id")
@@ -56,6 +71,15 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+type Device struct {
+	Id string `json:"id"`
+	Up bool   `json:"up"`
+}
+
+type DevicesResponse struct {
+	Devices []Device `json:"devices"`
 }
 
 type DeviceStatusResponse struct {

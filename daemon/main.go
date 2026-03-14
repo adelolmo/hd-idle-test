@@ -2,12 +2,15 @@ package main
 
 import (
 	"bufio"
+	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -83,6 +86,7 @@ func main() {
 			Diskstats string `json:"diskstats"`
 			Log       string `json:"log"`
 			Stdout    string `json:"stdout"`
+			Power     string `json:"power"`
 		}
 		type Response struct {
 			Frames []Frame `json:"frames"`
@@ -100,7 +104,7 @@ func main() {
 			if !e.IsDir() {
 				continue
 			}
-			var diskStatsBytes, logBytes, stdoutBytes []byte
+			var diskStatsBytes, logBytes, stdoutBytes, powerBytes []byte
 			diskStatsBytes, err = os.ReadFile(filepath.Join(sessionDir, e.Name(), "diskstats"))
 			if err != nil {
 				log.Println(err)
@@ -119,11 +123,18 @@ func main() {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
+			powerBytes, err = os.ReadFile(filepath.Join(sessionDir, e.Name(), "power"))
+			if err != nil {
+				log.Println(err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
 			frames = append(frames, Frame{
 				Id:        e.Name(),
 				Diskstats: string(diskStatsBytes),
 				Log:       string(logBytes),
 				Stdout:    string(stdoutBytes),
+				Power:     string(powerBytes),
 			})
 		}
 
@@ -255,6 +266,10 @@ func collectStats(dataDir, sessionDir string) error {
 	if err != nil {
 		return err
 	}
+	err = collectPowerState(frameDir)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -271,10 +286,68 @@ func collectDiskstats(frameDir string) error {
 func collectHdIdleLog(dataDir, frameDir string) error {
 	return collectLog(dataDir, hdidleLogFile, filepath.Join(frameDir, "log"), &hdidleLogLength)
 }
+
 func collectHdIdleStdout(dataDir, frameDir string) error {
 	return collectLog(dataDir, hdidleStdoutFile, filepath.Join(frameDir, "stdout"), &hdidleStdoutLength)
 }
 
+func collectPowerState(frameDir string) error {
+	type Device struct {
+		Id string `json:"id"`
+		Up bool   `json:"up"`
+	}
+	type DevicesResponse struct {
+		Devices []Device `json:"devices"`
+	}
+
+	client, err := openClient()
+	if err != nil {
+		panic(err)
+	}
+	resp, err := client.Get("http://unix/devices")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	var responseBody DevicesResponse
+	err = json.NewDecoder(resp.Body).Decode(&responseBody)
+	if err != nil {
+		return err
+	}
+
+	var content = ""
+	sort.Slice(responseBody.Devices, func(i, j int) bool {
+		return responseBody.Devices[i].Id < responseBody.Devices[j].Id
+	})
+	for i := range responseBody.Devices {
+		upBool := responseBody.Devices[i].Up
+		state := "down"
+		if upBool {
+			state = "up"
+		}
+		content += fmt.Sprintf("%s: %s\n",
+			responseBody.Devices[i].Id, state)
+	}
+
+	return os.WriteFile(filepath.Join(frameDir, "power"), []byte(content), 0644)
+}
+
+func openClient() (http.Client, error) {
+	conn, err := net.Dial("unix", "/tmp/spd.sock")
+	if err != nil {
+		return http.Client{}, err
+	}
+
+	c := http.Client{
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return conn, nil
+			},
+		},
+	}
+	return c, err
+}
 func collectLog(dataDir, originLogPath, destLogPath string, logLen *int) error {
 	file, err := os.Open(originLogPath)
 	if err != nil {
