@@ -14,21 +14,19 @@ curl -X POST -H 'Content-Type: application/json' \
 printf '\e[2K\r  Sleeping 11s\r'
 sleep 11
 
-# sleep 12m
 printf '\e[2K\r  Sleeping 12m\r'
 sleep 720
 
 printf '\e[2K\r  invoking hdparm\r'
-sudo hdparm -C /dev/sdb
+sudo hdparm -C /dev/sda > /dev/null 2>&1
 
-# sleep 12m
 printf '\e[2K\r  Sleeping 12m after invoking hdparm\r'
 sleep 720
 
-# assert sdb is spun down
-printf '\e[2K\r  Checking /dev/sdb power\r'
+# assert sda is spun down
+printf '\e[2K\r  Checking /dev/sda power\r'
 
-up=$(curl -sX GET --unix-socket /tmp/spd.sock "http://unix/devices/sdb" |jq .up)
+up=$(curl -sX GET --unix-socket /tmp/spd.sock "http://unix/devices/sda" |jq .up)
 printf '\e[2K\r'
 if [ $up = "true" ]; then
   printf '\e[1A\r* %s \033[0;31mFail\033[0m\n' "$NAME"

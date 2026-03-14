@@ -25,9 +25,9 @@ printf '\e[2K\r  Sleeping 12m\r'
 sleep 720
 
 # checking
-printf '\e[2K\r  Checking /dev/sdb power\r'
+printf '\e[2K\r  Checking /dev/sda power\r'
 
-up=$(curl -sX GET --unix-socket /tmp/spd.sock "http://unix/devices/sdb" |jq .up)
+up=$(curl -sX GET --unix-socket /tmp/spd.sock "http://unix/devices/sda" |jq .up)
 printf '\e[2K\r'
 if [ $up = "true" ]; then
   printf '\e[1A\r* %s \033[0;31mFail\033[0m\n' "$NAME"
